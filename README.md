@@ -4,14 +4,14 @@ A **real-time stock analysis web app** for Indian investors, built with **Flask 
 
 🎯 **Live Demo**: (https://devxworldstockanalyzer.onrender.com)   
 📘 **Built With**: Python, Flask, HTML, CSS, JavaScript, yfinance, Chart.js  
-🚀 **Deployed On**: Render (or your preferred platform)
+🚀 **Deployed On**: Render
 
 ---
 
 ## 📸 Screenshot (Optional)
 
 > ![DevXWorld Stock Analyzer Preview](screenshots/screenshot.png)
-> *(Optional: Add a screenshot of your app)*
+>
 
 ---
 
