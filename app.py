@@ -13,8 +13,8 @@ import google.generativeai as genai
 
 # Configure Gemini (requires GEMINI_API_KEY environment variable on Render)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-# Use 'gemini-1.5-flash' or 'gemini-1.0-pro-latest' - corrected model name
-model = genai.GenerativeModel('gemini-1.5-flash')
+# Use 'gemini-1.5-flash-latest' - often the most reliable alias for the latest version of a model
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 app = Flask(__name__)
 
@@ -77,7 +77,7 @@ def load_nse_stocks():
     except requests.exceptions.RequestException as e:
         print(f"🌐 Network error: {e}")
     except Exception as e:
-        print(f"⚠️ Error loading NSE data: {e}")
+        print(f"⚠️ Error loading NSE  {e}")
 
     return ALL_NSE_STOCKS
 
