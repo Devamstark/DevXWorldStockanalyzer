@@ -8,6 +8,13 @@ import pandas as pd
 from io import StringIO
 import os
 
+# Add Gemini imports
+import google.generativeai as genai
+
+# Configure Gemini (requires GEMINI_API_KEY environment variable on Render)
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-pro') # Use 'gemini-pro' for text
+
 app = Flask(__name__)
 
 # Global variable to store all NSE stocks
@@ -197,6 +204,9 @@ def quote(symbol):
         # Get fundamentals
         target_price = info.get("targetMeanPrice")
         pe_ratio = info.get("trailingPE")
+        eps = info.get("epsTrailingTwelveMonths")
+        dividend_yield = info.get("dividendYield")
+
         analyst_buy = info.get("buyCount", 0)
         analyst_hold = info.get("holdCount", 0)
         analyst_sell = info.get("sellCount", 0)
@@ -245,11 +255,11 @@ def quote(symbol):
             "change": f"{change_pct:+.2f}%",
             "volume": f"{volume:,}",
             "pe_ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
-            "eps": round(info.get("epsTrailingTwelveMonths", 0), 2) if info.get("epsTrailingTwelveMonths") else "N/A",
+            "eps": round(eps, 2) if eps else "N/A",
             "target_price": target_price if target_price else "N/A",
             "recommendation": recommendation,
             "reason": reason,
-            "dividend_yield": f"{info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "N/A",
+            "dividend_yield": f"{dividend_yield * 100:.2f}%" if dividend_yield else "N/A",
             "analyst_ratings": {
                 "buy": analyst_buy,
                 "hold": analyst_hold,
@@ -323,6 +333,52 @@ def losers():
     return jsonify(data[:5])
 
 
+# --- NEW: AI Analysis Endpoint ---
+@app.route('/api/analyze-stock', methods=['POST'])
+def analyze_stock():
+    """Generate AI analysis for a stock using Gemini"""
+    data = request.get_json()
+    symbol = data.get('symbol')
+    name = data.get('name')
+    metrics = data.get('metrics') # e.g., {price: 3000, change: 50, ...}
+    news = data.get('news', []) # e.g., ['News headline 1', 'News headline 2', ...]
+
+    if not symbol or not metrics:
+        return jsonify({"error": "Symbol and metrics are required"}), 400
+
+    try:
+        # Construct a prompt for the AI
+        prompt = f"""
+You are a financial analyst. Analyze the following data for the Indian stock: **{name} ({symbol})**.
+
+Key Metrics:
+- Current Price: ₹{metrics.get('price', 'N/A')}
+- Change: {metrics.get('change', 'N/A')} ({metrics.get('change_pct', 'N/A')})
+- PE Ratio: {metrics.get('pe_ratio', 'N/A')}
+- EPS: ₹{metrics.get('eps', 'N/A')}
+- 52W High: ₹{metrics.get('high52w', 'N/A')}
+- 52W Low: ₹{metrics.get('low52w', 'N/A')}
+- Market Cap: ₹{metrics.get('marketCap', 'N/A')}
+- Dividend Yield: {metrics.get('dividend_yield', 'N/A')}
+- Analyst Recommendation: {metrics.get('recommendation', 'N/A')} (Reason: {metrics.get('reason', 'N/A')})
+
+Recent News Headlines:
+{chr(10).join([f"- {n}" for n in news]) if news else 'No recent news available.'}
+
+Based on this data and news, provide a concise, clear analysis in 2-3 sentences. Mention the stock's current performance, valuation (if relevant), and a brief outlook. Respond in the language of the user's interface (English or Hindi if specified, default to English).
+        """
+
+        # Call Gemini API
+        response = model.generate_content(prompt)
+        analysis_text = response.text
+
+        return jsonify({"analysis": analysis_text})
+
+    except Exception as e:
+        print(f"Gemini API Error: {e}") # Log the error
+        return jsonify({"error": "Error generating analysis"}), 500
+
+
 @app.route('/api/health')
 def health():
     """Health check endpoint"""
@@ -332,4 +388,5 @@ def health():
 # Run the app
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+
     app.run(host='0.0.0.0', port=port, debug=True)
