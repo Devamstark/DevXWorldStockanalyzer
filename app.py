@@ -13,7 +13,8 @@ import google.generativeai as genai
 
 # Configure Gemini (requires GEMINI_API_KEY environment variable on Render)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro') # Use 'gemini-pro' for text
+# Use 'gemini-1.5-flash' or 'gemini-1.0-pro-latest' - corrected model name
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 app = Flask(__name__)
 
@@ -368,7 +369,7 @@ Recent News Headlines:
 Based on this data and news, provide a concise, clear analysis in 2-3 sentences. Mention the stock's current performance, valuation (if relevant), and a brief outlook. Respond in the language of the user's interface (English or Hindi if specified, default to English).
         """
 
-        # Call Gemini API
+        # Call Gemini API with the corrected model
         response = model.generate_content(prompt)
         analysis_text = response.text
 
