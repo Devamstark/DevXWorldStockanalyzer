@@ -18,6 +18,8 @@ const peRatio = document.getElementById('peRatio');
 const eps = document.getElementById('eps');
 const divYield = document.getElementById('divYield');
 const reasonText = document.getElementById('reasonText');
+// NEW: AI Analysis element
+const aiAnalysisContent = document.getElementById('ai-analysis-content');
 
 // Gainers & Losers
 const gainersList = document.getElementById('gainersList');
@@ -152,6 +154,40 @@ searchInput.addEventListener('keypress', e => {
   }
 });
 
+// ====== NEW: Function to call AI analysis endpoint ======
+async function getAIAnalysis(symbol, name, metrics, news) {
+    // Show loading state
+    aiAnalysisContent.textContent = 'Generating AI analysis...';
+    // Ensure the AI section is visible (it's already in the HTML)
+    // No need to explicitly show it here as it's part of the stockDetails card
+
+    try {
+        const response = await fetch('/api/analyze-stock', { // Call the new endpoint on your Flask server
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                symbol: symbol,
+                name: name,
+                metrics: metrics,
+                news: news // Pass news array (can be empty for now)
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`AI analysis API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        aiAnalysisContent.textContent = data.analysis; // Display the AI-generated text
+
+    } catch (error) {
+        console.error("Error fetching AI analysis:", error);
+        aiAnalysisContent.textContent = 'Error generating analysis. Please try again.';
+    }
+}
+
 // ====== Fetch Stock Data ======
 async function fetchStockData(symbol) {
   if (!symbol) return;
@@ -258,6 +294,32 @@ async function fetchStockData(symbol) {
         <p class="text-muted small">Premium: ${premium}%</p>
       `;
     };
+
+    // ====== NEW: Prepare data and call AI Analysis ======
+    // Prepare data to send to the AI endpoint
+    const stockMetricsForAI = {
+        price: data.price,
+        change: data.change, // e.g., "+2.5%"
+        change_pct: data.change, // Reuse the string for now, you could parse it if needed
+        pe_ratio: data.pe_ratio,
+        eps: data.eps,
+        // Note: These might not be in the initial 'data' object from /api/quote
+        // You might need to get them from yfinance info if you want them in the prompt
+        // For now, passing N/A or fetching separately if crucial
+        high52w: 'N/A', // data['52WeekHigh'],
+        low52w: 'N/A',  // data['52WeekLow'],
+        marketCap: 'N/A', // data.marketCap,
+        dividend_yield: data.dividend_yield,
+        recommendation: data.recommendation,
+        reason: data.reason
+    };
+
+    // You'll need to fetch news separately or pass it from the backend if you want it in the prompt
+    // For now, we'll pass an empty array
+    const newsForAI = []; // TODO: Fetch news headlines for the symbol from an API like GNews
+
+    // Call the new function to get AI analysis
+    getAIAnalysis(data.symbol, data.name, stockMetricsForAI, newsForAI);
 
     // Show results
     stockDetails.classList.remove('d-none');
