@@ -2,7 +2,7 @@
 # A smart stock search engine for Indian investors
 
 from flask import Flask, render_template, jsonify, request
-import yfinance as yf
+import yfinance as yf # Note: yfinance might cause rate limits, consider FMP API
 import requests
 import pandas as pd
 from io import StringIO
@@ -13,8 +13,8 @@ import google.generativeai as genai
 
 # Configure Gemini (requires GEMINI_API_KEY environment variable on Render)
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-# Use 'gemini-1.5-flash-latest' - often the most reliable alias for the latest version of a model
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+# Use the model name you confirmed works: gemini-2.0-flash
+model = genai.GenerativeModel('gemini-2.0-flash') # <-- Updated line
 
 app = Flask(__name__)
 
@@ -77,7 +77,7 @@ def load_nse_stocks():
     except requests.exceptions.RequestException as e:
         print(f"🌐 Network error: {e}")
     except Exception as e:
-        print(f"⚠️ Error loading NSE  {e}")
+        print(f"⚠️ Error loading NSE data: {e}")
 
     return ALL_NSE_STOCKS
 
@@ -369,7 +369,7 @@ Recent News Headlines:
 Based on this data and news, provide a concise, clear analysis in 2-3 sentences. Mention the stock's current performance, valuation (if relevant), and a brief outlook. Respond in the language of the user's interface (English or Hindi if specified, default to English).
         """
 
-        # Call Gemini API with the corrected model
+        # Call Gemini API with the confirmed working model
         response = model.generate_content(prompt)
         analysis_text = response.text
 
