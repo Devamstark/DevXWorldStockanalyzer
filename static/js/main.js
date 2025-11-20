@@ -7,37 +7,79 @@ const useEffect = React.useEffect;
 const createElement = React.createElement;
 const createRoot = ReactDOM.createRoot;
 
-// CRITICAL FIX: Access services directly from the global firebase object (V8 syntax)
-const auth = firebase.auth(); 
-const db = firebase.firestore();
+// --- FIREBASE SETUP: Check for global __firebase_config first ---
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
 
-// --- LUCIDE ICONS (Redefine simplified functions for global scope) ---
-const Icon = (name, className) => {
-    const iconMap = {
-        LayoutDashboard: 'DASH', Search: 'SRCH', PieChart: 'PORT', TrendingUp: 'UP', TrendingDown: 'DOWN',
-        Activity: 'ACT', Zap: 'TIP', Plus: '+', Trash2: 'TRASH', Menu: 'MENU', X: 'X',
-        Calculator: 'CALC', BrainCircuit: 'AI', DollarSign: '$', Briefcase: 'BRIEF', CheckCircle: '✓', AlertCircle: '!'
+// Initialize Firebase only if the config object is valid (prevents crash if config is empty)
+let auth = null;
+let db = null;
+let app = null;
+
+try {
+    // Check if the global firebase object exists and config is non-empty
+    if (typeof firebase !== 'undefined' && Object.keys(firebaseConfig).length > 0) {
+        app = firebase.initializeApp(firebaseConfig); 
+        auth = app.auth(); 
+        db = app.firestore();
+    } else {
+        // Fallback if Firebase environment variables are missing
+        throw new Error("Firebase config or global object missing.");
+    }
+} catch (e) {
+    console.error("Firebase initialization failed. Using Mock Data/Auth:", e);
+    // MOCK FALLBACK for when the canvas environment fails to provide keys or Firebase loads improperly
+    auth = { 
+        onAuthStateChanged: (cb) => { console.log('Mock Auth: Signing in anonymous...'); cb({ uid: 'mock-user-id' }); return () => {}; }, 
+        signInWithCustomToken: async () => ({ user: { uid: 'mock-user-id' } }),
+        signInAnonymously: async () => ({ user: { uid: 'mock-user-id' } })
     };
-    return createElement('span', { className: 'text-white ' + className }, iconMap[name] || '?');
+    db = { 
+        collection: () => ({ 
+            doc: () => ({ 
+                collection: () => ({ 
+                    onSnapshot: (cb) => { cb({ docs: [] }); return () => {}; }, 
+                    add: async () => ({ id: crypto.randomUUID() }),
+                }),
+                delete: async () => {},
+                set: async () => {}
+            })
+        }),
+        firestore: { FieldValue: { serverTimestamp: () => new Date() } }
+    };
+}
+
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer';
+
+// --- ICON FALLBACK (Simplified to use EMOJI/Unicode for maximum compatibility) ---
+
+const Icon = ({ name, className = "", size = 18 }) => {
+    // Basic EMOJI/Unicode placeholders for icons (Most reliable for general HTML/JS)
+    const iconMap = {
+        LayoutDashboard: '🏠', Search: '🔍', PieChart: '💼', TrendingUp: '↗️', TrendingDown: '↘️',
+        Activity: '⚡', Zap: '💡', Plus: '➕', Trash2: '🗑️', Menu: '☰', X: '✕',
+        Calculator: '🧮', BrainCircuit: '🧠', DollarSign: '₹', Briefcase: '📁', CheckCircle: '✅', AlertCircle: '⚠️'
+    };
+    // Ensure styles are applied but the icon itself is a simple string
+    return createElement('span', { className: `${className} text-xl leading-none inline-block align-middle` }, iconMap[name] || '?');
 };
 
-const LayoutDashboard = (props) => createElement('span', props, Icon('LayoutDashboard', props.className));
-const Search = (props) => createElement('span', props, Icon('Search', props.className));
-const PieChart = (props) => createElement('span', props, Icon('PieChart', props.className));
-const TrendingUp = (props) => createElement('span', props, Icon('TrendingUp', props.className));
-const TrendingDown = (props) => createElement('span', props, Icon('TrendingDown', props.className));
-const Activity = (props) => createElement('span', props, Icon('Activity', props.className));
-const Zap = (props) => createElement('span', props, Icon('Zap', props.className));
-const Plus = (props) => createElement('span', props, Icon('Plus', props.className));
-const Trash2 = (props) => createElement('span', props, Icon('Trash2', props.className));
-const Menu = (props) => createElement('span', props, Icon('Menu', props.className));
-const X = (props) => createElement('span', props, Icon('X', props.className));
-const Calculator = (props) => createElement('span', props, Icon('Calculator', props.className));
-const BrainCircuit = (props) => createElement('span', props, Icon('BrainCircuit', props.className));
-const DollarSign = (props) => createElement('span', props, Icon('DollarSign', props.className));
-const Briefcase = (props) => createElement('span', props, Icon('Briefcase', props.className));
-const CheckCircle = (props) => createElement('span', props, Icon('CheckCircle', props.className));
-const AlertCircle = (props) => createElement('span', props, Icon('AlertCircle', props.className));
+const LayoutDashboard = (props) => createElement(Icon, { name: 'LayoutDashboard', ...props });
+const Search = (props) => createElement(Icon, { name: 'Search', ...props });
+const PieChart = (props) => createElement(Icon, { name: 'PieChart', ...props });
+const TrendingUp = (props) => createElement(Icon, { name: 'TrendingUp', ...props });
+const TrendingDown = (props) => createElement(Icon, { name: 'TrendingDown', ...props });
+const Activity = (props) => createElement(Icon, { name: 'Activity', ...props });
+const Zap = (props) => createElement(Icon, { name: 'Zap', ...props });
+const Plus = (props) => createElement(Icon, { name: 'Plus', ...props });
+const Trash2 = (props) => createElement(Icon, { name: 'Trash2', ...props });
+const Menu = (props) => createElement(Icon, { name: 'Menu', ...props });
+const X = (props) => createElement(Icon, { name: 'X', ...props });
+const Calculator = (props) => createElement(Icon, { name: 'Calculator', ...props });
+const BrainCircuit = (props) => createElement(Icon, { name: 'BrainCircuit', ...props });
+const DollarSign = (props) => createElement(Icon, { name: 'DollarSign', ...props });
+const Briefcase = (props) => createElement(Icon, { name: 'Briefcase', ...props });
+const CheckCircle = (props) => createElement(Icon, { name: 'CheckCircle', ...props });
+const AlertCircle = (props) => createElement(Icon, { name: 'AlertCircle', ...props });
 
 
 // --- DEPENDENCY HOOKS (Recharts) ---
@@ -48,12 +90,6 @@ const XAxis = Recharts.XAxis;
 const YAxis = Recharts.YAxis;
 const CartesianGrid = Recharts.CartesianGrid;
 const Tooltip = Recharts.Tooltip;
-
-// --- FIREBASE SETUP ---
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const app = firebase.initializeApp(firebaseConfig); 
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer';
-
 
 // --- MOCK DATA ENGINE (Simulates your stock API) ---
 const INDIAN_STOCKS = [
@@ -291,21 +327,27 @@ function App() {
   // Auth Init: Signs in using the provided token or anonymously
   useEffect(() => {
     const initAuth = async () => {
-      const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-      if (token) {
-        await auth.signInWithCustomToken(token); // V8 syntax
-      } else {
-        await auth.signInAnonymously(); // V8 syntax
+      // Check if auth object is usable (not null fallback)
+      if (auth && auth.signInWithCustomToken) { 
+          const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+          if (token) {
+            await auth.signInWithCustomToken(token); // V8 syntax
+          } else {
+            await auth.signInAnonymously(); // V8 syntax
+          }
       }
     };
     initAuth();
-    const unsubscribe = auth.onAuthStateChanged(setUser); // V8 syntax
-    return () => unsubscribe();
+    // Use the potentially mocked/real auth object for listeners
+    if (auth && auth.onAuthStateChanged) {
+        const unsubscribe = auth.onAuthStateChanged(setUser); // V8 syntax
+        return () => unsubscribe();
+    }
   }, []);
 
   // Portfolio Sync: Listen for real-time updates to the user's portfolio in Firestore
   useEffect(() => {
-    if (!user) return; 
+    if (!user || !db || !db.collection) return; // Guard against uninitialized DB/User
     const q = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('portfolio');
     
     const unsubscribe = q.onSnapshot( // V8 syntax
@@ -375,8 +417,8 @@ function App() {
 
   // Add stock to Firestore portfolio
   const addToPortfolio = async (stock) => {
-    if (!user) {
-      showToast("Please wait for login...", "error");
+    if (!user || !db || !db.collection) {
+      showToast("Database not ready or user not logged in.", "error");
       return;
     }
     try {
@@ -404,7 +446,7 @@ function App() {
 
   // Remove stock from Firestore portfolio
   const removeFromPortfolio = async (id, symbol) => {
-    if (!user) return;
+    if (!user || !db || !db.collection) return;
     try {
       await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('portfolio').doc(id).delete(); // V8 syntax
       showToast(`Removed ${symbol}`);
@@ -847,7 +889,7 @@ function App() {
         // Sidebar Desktop
         createElement('aside', { className: "hidden md:flex w-64 flex-col border-r border-gray-800 bg-gray-950/50 backdrop-blur-sm" },
           createElement('div', { className: "p-6 flex items-center gap-3" },
-            createElement('div', { className: "w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20" }, "D"),
+            createElement('div', { className: "w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white" }, "D"),
             createElement('span', { className: "font-bold text-xl tracking-tight" }, "DevXWorld")
           ),
           
