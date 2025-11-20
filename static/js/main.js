@@ -29,7 +29,7 @@ try {
     // MOCK FALLBACK for when the canvas environment fails to provide keys or Firebase loads improperly
     auth = { 
         onAuthStateChanged: (cb) => { console.log('Mock Auth: Signing in anonymous...'); cb({ uid: 'mock-user-id' }); return () => {}; }, 
-        signInWithCustomToken: async () => ({ user: { uid: 'mock-user-id' } }),
+        signInWithCustomToken: async (token) => ({ user: { uid: 'mock-user-id' } }),
         signInAnonymously: async () => ({ user: { uid: 'mock-user-id' } })
     };
     db = { 
@@ -50,7 +50,7 @@ try {
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer';
 
 // --- ICON FALLBACK (Simplified to use EMOJI/Unicode for maximum compatibility) ---
-
+// This prevents crashes from complex icon libraries.
 const Icon = ({ name, className = "", size = 18 }) => {
     const iconMap = {
         LayoutDashboard: '🏠', Search: '🔍', PieChart: '💼', TrendingUp: '↗️', TrendingDown: '↘️',
@@ -811,7 +811,6 @@ function App() {
 document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('root');
     if (container) {
-        // Use createRoot for React 18 compatibility
         createRoot(container).render(createElement(App, null));
     }
 });
