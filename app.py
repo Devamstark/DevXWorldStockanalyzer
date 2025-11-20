@@ -299,6 +299,140 @@ def suggest():
     final = []
     for item in results:
         if item['stock']['symbol'] not in seen:
+            seen.add(item['stock']['symbol'])
+            final.append(item['stock'])
+
+    return jsonify(final[:15])
+
+@app.route('/api/quote/<symbol>')
+def quote(symbol):
+    cache_key = f"quote:{symbol}"
+    cached = get_cached_data(cache_key)
+    if cached: return jsonify(cached)
+
+    try:
+        orig_symbol = symbol.upper()
+        if not orig_symbol.endswith('.NS'):
+            symbol = f"{orig_symbol}.NS"
+        else:
+            symbol = orig_symbol
+
+        ticker = yf.Ticker(symbol)
+        info = ticker.info
+        hist = ticker.history(period="2d")
+
+        if hist.empty:
+            return jsonify({"error": "No price data found"}), 404
+
+        current_price = round(hist['Close'].iloc[-1], 2)
+        prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
+        change_pct = ((current_price - prev_close) / prev_close) * 100
+        volume = int(hist['Volume'].iloc[-1]) if 'Volume' in hist.columns and len(hist) > 0 else 0
+
+        target_price = info.get("targetMeanPrice")
+        pe_ratio = info.get("trailingPE")
+        
+        recommendation = "HOLD"
+        reason = "Fairly valued"
+        
+        if target_price:
+            target_price = round(target_price, 2)
+            diff = ((current_price - target_price) / target_price) * 100
+            if diff > 20: recommendation, reason = "SELL", "Overvalued (20%+ above target)"
+            elif diff > 10: recommendation, reason = "SELL", "Overvalued (10-20% above target)"
+            elif diff < -15: recommendation, reason = "BUY", "Undervalued (15%+ below target)"
+        elif pe_ratio and pe_ratio > 50:
+            recommendation, reason = "SELL", "Very high P/E ratio"
+
+        result = {
+            "symbol": symbol,
+            "name": info.get("longName", symbol),
+            "price": current_price,
+            "change": f"{change_pct:+.2f}%",
+            "volume": f"{volume:,}",
+            "pe_ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
+            "eps": round(info.get("epsTrailingTwelveMonths", 0), 2) if info.get("epsTrailingTwelveMonths") else "N/A",
+            "target_price": target_price if target_price else "N/A",
+            "recommendation": recommendation,
+            "reason": reason,
+            "dividend_yield": f"{info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "N/A",
+            "analyst_ratings": {
+                "buy": info.get("buyCount", 0),
+                "hold": info.get("holdCount", 0),
+                "sell": info.get("sellCount", 0)
+            },
+            "last_updated": hist.index[-1].strftime("%Y-%m-%dT%H:%M:%S")
+        }
+        
+        set_cached_data(cache_key, result)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+TOP_WATCHLIST = [
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "SBIN.NS",
+    "LT.NS", "AXISBANK.NS", "KOTAKBANK.NS", "ITC.NS", "BHARTIARTL.NS",
+    "HINDUNILVR.NS", "ICICIBANK.NS", "MARUTI.NS", "TITAN.NS", "ASIANPAINT.NS",
+    "SUNPHARMA.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "WIPRO.NS", "TECHM.NS",
+    "POWERGRID.NS", "NTPC.NS", "COALINDIA.NS", "ULTRACEMCO.NS", "HCLTECH.NS",
+    "ADANIENT.NS", "ADANIPORTS.NS", "APOLLOHOSP.NS", "JIOFINANCE.NS", "TATASTEEL.NS"
+]
+
+@app.route('/api/gainers')
+def gainers():
+    cached = get_cached_data('movers:gainers')
+    if cached: return jsonify(cached)
+
+    data = []
+    for symbol in TOP_WATCHLIST:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="2d")
+            if len(hist) < 2: continue
+            
+            curr = hist['Close'].iloc[-1]
+            prev = hist['Close'].iloc[-2]
+            change = ((curr - prev) / prev) * 100
+            
+            if change > 0:
+                data.append({"symbol": symbol, "price": round(curr, 2), "change": round(change, 2)})
+        except: continue
+
+    data.sort(key=lambda x: x['change'], reverse=True)
+    result = data[:5]
+    set_cached_data('movers:gainers', result)
+    return jsonify(result)
+
+@app.route('/api/losers')
+def losers():
+    cached = get_cached_data('movers:losers')
+    if cached: return jsonify(cached)
+
+    data = []
+    for symbol in TOP_WATCHLIST:
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="2d")
+            if len(hist) < 2: continue
+            
+            curr = hist['Close'].iloc[-1]
+            prev = hist['Close'].iloc[-2]
+            change = ((curr - prev) / prev) * 100
+            
+            if change < 0:
+                data.append({"symbol": symbol, "price": round(curr, 2), "change": round(change, 2)})
+        except: continue
+
+    data.sort(key=lambda x: x['change'])
+    result = data[:5]
+    set_cached_data('movers:losers', result)
+    return jsonify(result)
+
+@app.route('/api/portfolio', methods=['GET'])
+def get_portfolio():
+    portfolio = database.get_portfolio()
+    results = []
+    for item in portfolio:
         symbol = item['symbol']
         try:
             ticker = yf.Ticker(symbol)
