@@ -33,6 +33,11 @@
     <div id="root"></div>
     
     <!-- 4. Load YOUR main application logic from the correct static path -->
+    
+    <!-- CRITICAL FIX: Jinja2 Raw Tags to prevent Python parsing of React/JSX syntax -->
+    {% raw %}
     <script src="/static/js/main.js"></script>
+    {% endraw %}
+    
 </body>
 </html>
