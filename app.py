@@ -8,14 +8,6 @@ import pandas as pd
 from io import StringIO
 import os
 
-# Add Gemini imports
-import google.generativeai as genai
-
-# Configure Gemini (requires GEMINI_API_KEY environment variable on Render)
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-# Use the model name you confirmed works: gemini-2.0-flash
-model = genai.GenerativeModel('gemini-2.0-flash') # <-- Updated line
-
 app = Flask(__name__)
 
 # Global variable to store all NSE stocks
@@ -332,52 +324,6 @@ def losers():
 
     data.sort(key=lambda x: x['change'])
     return jsonify(data[:5])
-
-
-# --- NEW: AI Analysis Endpoint ---
-@app.route('/api/analyze-stock', methods=['POST'])
-def analyze_stock():
-    """Generate AI analysis for a stock using Gemini"""
-    data = request.get_json()
-    symbol = data.get('symbol')
-    name = data.get('name')
-    metrics = data.get('metrics') # e.g., {price: 3000, change: 50, ...}
-    news = data.get('news', []) # e.g., ['News headline 1', 'News headline 2', ...]
-
-    if not symbol or not metrics:
-        return jsonify({"error": "Symbol and metrics are required"}), 400
-
-    try:
-        # Construct a prompt for the AI
-        prompt = f"""
-You are a financial analyst. Analyze the following data for the Indian stock: **{name} ({symbol})**.
-
-Key Metrics:
-- Current Price: ₹{metrics.get('price', 'N/A')}
-- Change: {metrics.get('change', 'N/A')} ({metrics.get('change_pct', 'N/A')})
-- PE Ratio: {metrics.get('pe_ratio', 'N/A')}
-- EPS: ₹{metrics.get('eps', 'N/A')}
-- 52W High: ₹{metrics.get('high52w', 'N/A')}
-- 52W Low: ₹{metrics.get('low52w', 'N/A')}
-- Market Cap: ₹{metrics.get('marketCap', 'N/A')}
-- Dividend Yield: {metrics.get('dividend_yield', 'N/A')}
-- Analyst Recommendation: {metrics.get('recommendation', 'N/A')} (Reason: {metrics.get('reason', 'N/A')})
-
-Recent News Headlines:
-{chr(10).join([f"- {n}" for n in news]) if news else 'No recent news available.'}
-
-Based on this data and news, provide a concise, clear analysis in 2-3 sentences. Mention the stock's current performance, valuation (if relevant), and a brief outlook. Respond in the language of the user's interface (English or Hindi if specified, default to English).
-        """
-
-        # Call Gemini API with the confirmed working model
-        response = model.generate_content(prompt)
-        analysis_text = response.text
-
-        return jsonify({"analysis": analysis_text})
-
-    except Exception as e:
-        print(f"Gemini API Error: {e}") # Log the error
-        return jsonify({"error": "Error generating analysis"}), 500
 
 
 @app.route('/api/health')
