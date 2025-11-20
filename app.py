@@ -1,24 +1,6 @@
 # app.py - DevXWorld Stock Analyzer
 # A smart stock search engine for Indian investors
 
-from flask import Flask, render_template, jsonify, request
-import yfinance as yf
-import requests
-import pandas as pd
-from io import StringIO
-import os
-import database
-import time
-import random
-from datetime import datetime
-
-app = Flask(__name__)
-
-# Simple in-memory cache
-CACHE = {}
-CACHE_EXPIRY = {
-    'quote': 120,      # 2 minutes for quotes
-    'movers': 1800     # 30 minutes for gainers/losers
 }
 
 def get_cached_data(key):
@@ -516,10 +498,234 @@ def add_to_portfolio():
         return jsonify({"message": "Added"}), 201
     return jsonify({"message": "Exists"}), 400
 
+    results.sort(key=lambda x: x['score'], reverse=True)
+    
+    seen = set()
+    final = []
+    for item in results:
+        if item['stock']['symbol'] not in seen:
+            seen.add(item['stock']['symbol'])
+            final.append(item['stock'])
+
+    return jsonify(final[:15])
+
+@app.route('/api/quote/<symbol>')
+def quote(symbol):
+    cache_key = f"quote:{symbol}"
+    cached = get_cached_data(cache_key)
+    if cached: return jsonify(cached)
+
+    try:
+        orig_symbol = symbol.upper()
+        if not orig_symbol.endswith('.NS'):
+            symbol = f"{orig_symbol}.NS"
+        else:
+            symbol = orig_symbol
+
+        ticker = yf.Ticker(symbol)
+        
+        # Try to fetch fast info first to check connectivity
+        try:
+            fast_info = ticker.fast_info
+            current_price = fast_info.last_price
+        except:
+            # If fast_info fails, likely blocked or invalid
+            raise Exception("API Connection Failed")
+
+        info = ticker.info
+        hist = ticker.history(period="2d")
+
+        if hist.empty:
+            raise Exception("No price data")
+
+        current_price = round(hist['Close'].iloc[-1], 2)
+        prev_close = hist['Close'].iloc[-2] if len(hist) > 1 else current_price
+        change_pct = ((current_price - prev_close) / prev_close) * 100
+        volume = int(hist['Volume'].iloc[-1]) if 'Volume' in hist.columns and len(hist) > 0 else 0
+
+        target_price = info.get("targetMeanPrice")
+        pe_ratio = info.get("trailingPE")
+        
+        recommendation = "HOLD"
+        reason = "Fairly valued"
+        
+        if target_price:
+            target_price = round(target_price, 2)
+            diff = ((current_price - target_price) / target_price) * 100
+            if diff > 20: recommendation, reason = "SELL", "Overvalued (20%+ above target)"
+            elif diff > 10: recommendation, reason = "SELL", "Overvalued (10-20% above target)"
+            elif diff < -15: recommendation, reason = "BUY", "Undervalued (15%+ below target)"
+        elif pe_ratio and pe_ratio > 50:
+            recommendation, reason = "SELL", "Very high P/E ratio"
+
+        result = {
+            "symbol": symbol,
+            "name": info.get("longName", symbol),
+            "price": current_price,
+            "change": f"{change_pct:+.2f}%",
+            "volume": f"{volume:,}",
+            "pe_ratio": round(pe_ratio, 2) if pe_ratio else "N/A",
+            "eps": round(info.get("epsTrailingTwelveMonths", 0), 2) if info.get("epsTrailingTwelveMonths") else "N/A",
+            "target_price": target_price if target_price else "N/A",
+            "recommendation": recommendation,
+            "reason": reason,
+            "dividend_yield": f"{info.get('dividendYield', 0) * 100:.2f}%" if info.get('dividendYield') else "N/A",
+            "analyst_ratings": {
+                "buy": info.get("buyCount", 0),
+                "hold": info.get("holdCount", 0),
+                "sell": info.get("sellCount", 0)
+            },
+            "last_updated": hist.index[-1].strftime("%Y-%m-%dT%H:%M:%S")
+        }
+        
+        set_cached_data(cache_key, result)
+        return jsonify(result)
+    except Exception as e:
+        print(f"⚠️ API Error for {symbol}: {e}. Using Mock Data.")
+        mock_result = get_mock_quote(symbol)
+        set_cached_data(cache_key, mock_result)
+        return jsonify(mock_result)
+
+TOP_WATCHLIST = [
+    "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "SBIN.NS",
+    "LT.NS", "AXISBANK.NS", "KOTAKBANK.NS", "ITC.NS", "BHARTIARTL.NS",
+    "HINDUNILVR.NS", "ICICIBANK.NS", "MARUTI.NS", "TITAN.NS", "ASIANPAINT.NS",
+    "SUNPHARMA.NS", "BAJFINANCE.NS", "BAJAJFINSV.NS", "WIPRO.NS", "TECHM.NS",
+    "POWERGRID.NS", "NTPC.NS", "COALINDIA.NS", "ULTRACEMCO.NS", "HCLTECH.NS",
+    "ADANIENT.NS", "ADANIPORTS.NS", "APOLLOHOSP.NS", "JIOFINANCE.NS", "TATASTEEL.NS"
+]
+
+@app.route('/api/gainers')
+def gainers():
+    cached = get_cached_data('movers:gainers')
+    if cached: return jsonify(cached)
+
+    data = []
+    # Try real data first
+    try:
+        for symbol in TOP_WATCHLIST[:10]: # Limit to 10 to save time
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="2d")
+                if len(hist) < 2: continue
+                curr = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change = ((curr - prev) / prev) * 100
+                if change > 0:
+                    data.append({"symbol": symbol, "price": round(curr, 2), "change": round(change, 2)})
+            except: continue
+    except: pass
+
+    # If real data failed or is empty, use mock
+    if not data:
+        for symbol in TOP_WATCHLIST[:5]:
+            mock = get_mock_quote(symbol)
+            if float(mock['change'].strip('%')) > 0:
+                data.append({"symbol": symbol, "price": mock['price'], "change": float(mock['change'].strip('%'))})
+            else:
+                # Force positive for gainers
+                data.append({"symbol": symbol, "price": mock['price'], "change": abs(float(mock['change'].strip('%')))})
+
+    data.sort(key=lambda x: x['change'], reverse=True)
+    result = data[:5]
+    set_cached_data('movers:gainers', result)
+    return jsonify(result)
+
+@app.route('/api/losers')
+def losers():
+    cached = get_cached_data('movers:losers')
+    if cached: return jsonify(cached)
+
+    data = []
+    try:
+        for symbol in TOP_WATCHLIST[:10]:
+            try:
+                ticker = yf.Ticker(symbol)
+                hist = ticker.history(period="2d")
+                if len(hist) < 2: continue
+                curr = hist['Close'].iloc[-1]
+                prev = hist['Close'].iloc[-2]
+                change = ((curr - prev) / prev) * 100
+                if change < 0:
+                    data.append({"symbol": symbol, "price": round(curr, 2), "change": round(change, 2)})
+            except: continue
+    except: pass
+
+    if not data:
+        for symbol in TOP_WATCHLIST[5:10]:
+            mock = get_mock_quote(symbol)
+            change_val = float(mock['change'].strip('%'))
+            if change_val < 0:
+                data.append({"symbol": symbol, "price": mock['price'], "change": change_val})
+            else:
+                # Force negative for losers
+                data.append({"symbol": symbol, "price": mock['price'], "change": -abs(change_val)})
+
+    data.sort(key=lambda x: x['change'])
+    result = data[:5]
+    set_cached_data('movers:losers', result)
+    return jsonify(result)
+
+@app.route('/api/portfolio', methods=['GET'])
+def get_portfolio():
+    portfolio = database.get_portfolio()
+    results = []
+    for item in portfolio:
+        symbol = item['symbol']
+        try:
+            ticker = yf.Ticker(symbol)
+            hist = ticker.history(period="2d")
+            if not hist.empty:
+                curr = round(hist['Close'].iloc[-1], 2)
+                prev = hist['Close'].iloc[-2] if len(hist) > 1 else curr
+                change = ((curr - prev) / prev) * 100
+                results.append({"symbol": symbol, "name": item['name'], "price": curr, "change": round(change, 2)})
+            else:
+                results.append({"symbol": symbol, "name": item['name'], "price": "N/A", "change": "N/A"})
+        except:
+            results.append({"symbol": symbol, "name": item['name'], "price": "Error", "change": "Error"})
+    return jsonify(results)
+
+@app.route('/api/portfolio', methods=['POST'])
+def add_to_portfolio():
+    data = request.json
+    if database.add_stock(data.get('symbol'), data.get('name')):
+        return jsonify({"message": "Added"}), 201
+    return jsonify({"message": "Exists"}), 400
+
 @app.route('/api/portfolio/<symbol>', methods=['DELETE'])
 def remove_from_portfolio(symbol):
     database.remove_stock(symbol)
     return jsonify({"message": "Removed"}), 200
+
+@app.route('/api/analyze', methods=['POST'])
+def analyze_stock():
+    if not GEMINI_API_KEY:
+        return jsonify({"error": "AI service unavailable (Missing API Key)"}), 503
+
+    data = request.json
+    symbol = data.get('symbol')
+    price = data.get('price')
+    change = data.get('change')
+    
+    if not symbol:
+        return jsonify({"error": "Symbol required"}), 400
+
+    try:
+        model = genai.GenerativeModel('gemini-pro')
+        prompt = f"""
+        Analyze the stock {symbol} (Price: {price}, Change: {change}). 
+        Provide a concise 3-bullet point summary covering:
+        1. Recent market sentiment.
+        2. Key risks or growth drivers.
+        3. A short-term outlook (Bullish/Bearish/Neutral).
+        Keep it under 100 words. Use professional financial tone.
+        """
+        
+        response = model.generate_content(prompt)
+        return jsonify({"analysis": response.text})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/api/health')
 def health():

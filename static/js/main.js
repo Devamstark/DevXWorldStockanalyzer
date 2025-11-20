@@ -166,12 +166,52 @@ async function fetchStockDetails(symbol) {
         // Chart
         renderChart(data.analyst_ratings);
 
+        // Trigger AI Analysis
+        fetchAIAnalysis(data.symbol, data.price, data.change);
+
         stockDetails.classList.remove('hidden');
     } catch (err) {
         console.error("Error fetching stock details:", err);
         alert(`Failed to load stock data: ${err.message}. Please try again.`);
     } finally {
         loading.classList.add('hidden');
+    }
+}
+
+async function fetchAIAnalysis(symbol, price, change) {
+    const aiLoading = document.getElementById('aiLoading');
+    const aiContent = document.getElementById('aiAnalysisContent');
+
+    if (!aiLoading || !aiContent) return;
+
+    aiLoading.classList.remove('hidden');
+    aiContent.classList.add('hidden');
+
+    try {
+        const res = await fetch('/api/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ symbol, price, change })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+            aiContent.innerHTML = `<p class="text-danger">AI Analysis Unavailable: ${data.error}</p>`;
+        } else {
+            // Format the markdown-style response
+            const formattedText = data.analysis
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold
+                .replace(/\* /g, '• ') // Bullets
+                .replace(/\n/g, '<br>'); // Line breaks
+
+            aiContent.innerHTML = formattedText;
+        }
+    } catch (err) {
+        aiContent.innerHTML = `<p class="text-danger">Failed to generate analysis.</p>`;
+    } finally {
+        aiLoading.classList.add('hidden');
+        aiContent.classList.remove('hidden');
     }
 }
 
