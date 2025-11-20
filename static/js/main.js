@@ -12,10 +12,7 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // --- LUCIDE ICONS (Redefine simplified functions for global scope) ---
-// Since we can't easily import Lucide-React without a build step, we define simple functional components
-// to ensure the app renders without errors.
 const Icon = (name, className) => {
-    // Map simplified names to default text representation for fallbacks
     const iconMap = {
         LayoutDashboard: 'DASH', Search: 'SRCH', PieChart: 'PORT', TrendingUp: 'UP', TrendingDown: 'DOWN',
         Activity: 'ACT', Zap: 'TIP', Plus: '+', Trash2: 'TRASH', Menu: 'MENU', X: 'X',
@@ -89,6 +86,83 @@ const generateChartData = (basePrice) => {
   }
   return data;
 };
+
+// --- GEMINI API CALL FUNCTION (New Feature) ---
+
+const fetchGeminiSentimentAnalysis = async (symbol, name, setGeminiResult) => {
+    setGeminiResult({ text: null, sources: null, loading: true, error: null });
+
+    const userQuery = `Analyze the current market sentiment and news for the Indian stock ${name} (${symbol}). Determine a concise sentiment (Strong Buy, Buy, Hold, Sell, Strong Sell) and summarize the supporting facts in 2-3 sentences.`;
+    const apiKey = ""; 
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+    
+    const payload = {
+        contents: [{ parts: [{ text: userQuery }] }],
+        // Enable Google Search for real-time market grounding
+        tools: [{ "google_search": {} }], 
+        systemInstruction: {
+            parts: [{ text: "Act as a specialized financial market analyst focused on Indian equities. Your response MUST be concise (under 50 words) and grounded in the latest web search results." }]
+        },
+    };
+
+    let attempts = 0;
+    const maxAttempts = 3;
+    let result = null;
+
+    while (attempts < maxAttempts) {
+        try {
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                // If it's a 429 (Rate Limit) or 500/503, retry
+                if (response.status === 429 || response.status >= 500) {
+                    throw new Error(`API error: ${response.status}`);
+                }
+                // For other errors (like 400), stop retrying
+                throw new Error("API call failed.");
+            }
+
+            result = await response.json();
+            break; // Success
+        } catch (e) {
+            attempts++;
+            if (attempts >= maxAttempts) {
+                setGeminiResult({ text: null, sources: null, loading: false, error: "Failed to get real-time sentiment after several attempts." });
+                return;
+            }
+            const delay = Math.pow(2, attempts) * 1000; // Exponential backoff (2s, 4s, 8s)
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+
+    if (!result) return;
+
+    const candidate = result.candidates?.[0];
+
+    if (candidate && candidate.content?.parts?.[0]?.text) {
+        const text = candidate.content.parts[0].text;
+        let sources = [];
+        const groundingMetadata = candidate.groundingMetadata;
+
+        if (groundingMetadata && groundingMetadata.groundingAttributions) {
+            sources = groundingMetadata.groundingAttributions
+                .map(attribution => ({
+                    uri: attribution.web?.uri,
+                    title: attribution.web?.title,
+                }))
+                .filter(source => source.uri && source.title);
+        }
+
+        setGeminiResult({ text, sources, loading: false, error: null });
+    } else {
+        setGeminiResult({ text: null, sources: null, loading: false, error: "AI analysis incomplete or failed." });
+    }
+};
+
 
 // --- COMPONENTS ---
 
@@ -206,10 +280,13 @@ function App() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [portfolio, setPortfolio] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuMenuOpen] = useState(false);
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  // NEW: State for Gemini API result
+  const [geminiResult, setGeminiResult] = useState({ text: null, sources: null, loading: false, error: null });
+
 
   // Auth Init: Signs in using the provided token or anonymously
   useEffect(() => {
@@ -248,6 +325,18 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [toast]);
+
+  // NEW: Trigger Gemini analysis when stock changes
+  useEffect(() => {
+    if (selectedStock) {
+      // Clear previous result and start analysis
+      setGeminiResult({ text: null, sources: null, loading: true, error: null });
+      fetchGeminiSentimentAnalysis(selectedStock.symbol, selectedStock.name, setGeminiResult);
+    } else {
+      setGeminiResult({ text: null, sources: null, loading: false, error: null });
+    }
+  }, [selectedStock]);
+
 
   // --- ACTIONS ---
 
@@ -489,6 +578,14 @@ function App() {
       )
     );
 
+    const sentimentColor = (text) => {
+        if (!text) return 'text-gray-400';
+        const lower = text.toLowerCase();
+        if (lower.includes('strong buy') || lower.includes('buy')) return 'text-emerald-400';
+        if (lower.includes('sell') || lower.includes('strong sell')) return 'text-rose-400';
+        return 'text-yellow-400'; // Hold/Neutral
+    };
+
     return (
       createElement('div', { className: "space-y-6 animate-fade-in pb-20" },
         // Header
@@ -553,27 +650,50 @@ function App() {
 
         // Analysis & Calculator
         createElement('div', { className: "grid grid-cols-1 lg:grid-cols-3 gap-6" },
-          // AI Analysis
-          createElement('div', { className: "lg:col-span-2" },
+          // AI Analysis (Modified to include Gemini Sentiment)
+          createElement('div', { className: "lg:col-span-2 space-y-6" },
+            // Gemini Market Sentiment Card (NEW)
             createElement(Card, { className: "h-full" },
-              createElement('div', { className: "flex items-center gap-2 mb-4" },
-                createElement(BrainCircuit, { className: "text-purple-400" }),
-                createElement('h3', { className: "text-xl font-bold text-white" }, "AI Analysis")
-              ),
-              createElement('div', { className: "bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500" },
-                createElement('p', { className: "text-gray-300 leading-relaxed" }, selectedStock.aiAnalysis)
-              ),
-              createElement('div', { className: "mt-6" },
-                createElement('h4', { className: "text-sm font-medium text-gray-400 mb-3" }, "ANALYST RATINGS"),
-                createElement('div', { className: "flex items-center gap-1 h-4 rounded-full overflow-hidden" },
-                  createElement('div', { className: "bg-emerald-500 w-[60%]", title: "Buy 60%" }),
-                  createElement('div', { className: "bg-yellow-500 w-[30%]", title: "Hold 30%" }),
-                  createElement('div', { className: "bg-rose-500 w-[10%]", title: "Sell 10%" })
+              createElement('div', { className: "flex items-center justify-between mb-4" },
+                createElement('div', { className: "flex items-center gap-2" },
+                  createElement(BrainCircuit, { className: sentimentColor(geminiResult.text) }),
+                  createElement('h3', { className: "text-xl font-bold text-white" }, "✨ Gemini Market Sentiment")
                 ),
-                createElement('div', { className: "flex justify-between text-xs text-gray-500 mt-2" },
-                  createElement('span', null, "Strong Buy"),
-                  createElement('span', null, "Hold"),
-                  createElement('span', null, "Sell")
+                geminiResult.loading && createElement('span', { className: "text-sm text-blue-400 animate-pulse" }, "Analyzing...")
+              ),
+              
+              geminiResult.error && 
+                createElement('div', { className: "bg-rose-900/50 p-3 rounded-lg text-rose-300 text-sm" }, geminiResult.error),
+
+              !geminiResult.loading && geminiResult.text &&
+                createElement('div', { className: "bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500" },
+                  createElement('p', { className: `leading-relaxed font-medium ${sentimentColor(geminiResult.text)}` }, geminiResult.text),
+                  geminiResult.sources && geminiResult.sources.length > 0 && 
+                    createElement('div', { className: "mt-4 pt-3 border-t border-gray-700/50 text-xs text-gray-500" }, 
+                      "Sources: ", geminiResult.sources.map((src, index) => 
+                        createElement('a', { key: index, href: src.uri, target: "_blank", className: "text-blue-400 hover:underline" }, `[${index + 1}]`)
+                      )
+                    )
+                ),
+
+              // Existing AI Analysis (Placeholder/Mock)
+              createElement('div', { className: "mt-6 pt-6 border-t border-gray-800" },
+                createElement('h4', { className: "text-sm font-medium text-gray-400 mb-3" }, "AI TECHNICAL SUMMARY"),
+                createElement('div', { className: "bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500" },
+                  createElement('p', { className: "text-gray-300 leading-relaxed" }, selectedStock.aiAnalysis)
+                ),
+                createElement('div', { className: "mt-6" },
+                    createElement('h4', { className: "text-sm font-medium text-gray-400 mb-3" }, "ANALYST RATINGS"),
+                    createElement('div', { className: "flex items-center gap-1 h-4 rounded-full overflow-hidden" },
+                      createElement('div', { className: "bg-emerald-500 w-[60%]", title: "Buy 60%" }),
+                      createElement('div', { className: "bg-yellow-500 w-[30%]", title: "Hold 30%" }),
+                      createElement('div', { className: "bg-rose-500 w-[10%]", title: "Sell 10%" })
+                    ),
+                    createElement('div', { className: "flex justify-between text-xs text-gray-500 mt-2" },
+                      createElement('span', null, "Strong Buy"),
+                      createElement('span', null, "Hold"),
+                      createElement('span', null, "Sell")
+                    )
                 )
               )
             )
