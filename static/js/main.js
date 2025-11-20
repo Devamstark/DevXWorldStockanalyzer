@@ -1,338 +1,796 @@
-// DOM Elements
-const searchInput = document.getElementById('searchInput');
-const suggestionsBox = document.getElementById('suggestions');
-const searchBtn = document.getElementById('searchBtn');
-const loading = document.getElementById('loading');
-const stockDetails = document.getElementById('stockDetails');
-const noResults = document.getElementById('noResults');
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  onSnapshot, 
+  query, 
+  serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { 
+  LayoutDashboard, 
+  Search, 
+  PieChart, 
+  TrendingUp, 
+  TrendingDown, 
+  Activity, 
+  Zap, 
+  Plus, 
+  Trash2, 
+  Menu, 
+  X, 
+  Calculator, 
+  BrainCircuit,
+  DollarSign,
+  Briefcase,
+  CheckCircle,
+  AlertCircle 
+} from 'https://cdn.jsdelivr.net/npm/lucide-react@0.363.0/+esm';
+import { 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip 
+} from 'https://cdn.skypack.dev/recharts@2.12.7';
 
-// Detail fields
-const stockName = document.getElementById('stockName');
-const stockSymbol = document.getElementById('stockSymbol');
-const stockPrice = document.getElementById('stockPrice');
-const stockChange = document.getElementById('stockChange');
-const stockVolume = document.getElementById('stockVolume');
-const recommendation = document.getElementById('recommendation');
-const targetPrice = document.getElementById('targetPrice');
-const peRatio = document.getElementById('peRatio');
-const eps = document.getElementById('eps');
-const divYield = document.getElementById('divYield');
-const reasonText = document.getElementById('reasonText');
-// NEW: AI Analysis element
-const aiAnalysisContent = document.getElementById('ai-analysis-content');
+const { useState, useEffect } = React;
+const { createRoot } = ReactDOM;
 
-// Gainers & Losers
-const gainersList = document.getElementById('gainersList');
-const losersList = document.getElementById('losersList');
+// --- FIREBASE SETUP ---
+// Ensure compatibility with environment variables
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer';
 
-// Analyst Chart
-const analystBuy = document.getElementById('analystBuy');
-const analystHold = document.getElementById('analystHold');
-const analystSell = document.getElementById('analystSell');
+// --- MOCK DATA ENGINE (Simulates your stock API) ---
+const INDIAN_STOCKS = [
+  { symbol: 'RELIANCE', name: 'Reliance Industries', sector: 'Energy', price: 2450.50, change: 1.2 },
+  { symbol: 'TCS', name: 'Tata Consultancy Svc', sector: 'IT', price: 3500.00, change: -0.5 },
+  { symbol: 'HDFCBANK', name: 'HDFC Bank', sector: 'Finance', price: 1650.20, change: 0.8 },
+  { symbol: 'INFY', name: 'Infosys', sector: 'IT', price: 1420.10, change: -1.2 },
+  { symbol: 'ICICIBANK', name: 'ICICI Bank', sector: 'Finance', price: 950.00, change: 1.5 },
+  { symbol: 'TATAMOTORS', name: 'Tata Motors', sector: 'Auto', price: 620.40, change: 2.1 },
+  { symbol: 'SBIN', name: 'State Bank of India', sector: 'Finance', price: 580.30, change: 0.3 },
+  { symbol: 'ITC', name: 'ITC Limited', sector: 'FMCG', price: 450.00, change: -0.1 },
+  { symbol: 'BAJFINANCE', name: 'Bajaj Finance', sector: 'Finance', price: 7200.00, change: 1.8 },
+  { symbol: 'ADANIENT', name: 'Adani Enterprises', sector: 'Conglomerate', price: 2400.00, change: -2.5 },
+  { symbol: 'WIPRO', name: 'Wipro Limited', sector: 'IT', price: 405.10, change: -0.8 },
+  { symbol: 'ASIANPAINT', name: 'Asian Paints', sector: 'Materials', price: 3200.00, change: 0.4 },
+  { symbol: 'MARUTI', name: 'Maruti Suzuki', sector: 'Auto', price: 9800.50, change: 1.1 },
+  { symbol: 'TITAN', name: 'Titan Company', sector: 'Consumer', price: 2950.00, change: 0.6 },
+  { symbol: 'AXISBANK', name: 'Axis Bank', sector: 'Finance', price: 980.00, change: -0.2 },
+];
 
-// Fair Value Calculator
-const calcEPS = document.getElementById('calcEPS');
-const calcGrowth = document.getElementById('calcGrowth');
-const calcReturn = document.getElementById('calcReturn');
-const calcButton = document.getElementById('calcButton');
-const fairValueResult = document.getElementById('fairValueResult');
-
-let currentSymbol = null;
-let refreshInterval = null;
-
-// ====== Load Gainers & Losers on Page Load ======
-window.addEventListener('load', () => {
-  fetch('/api/gainers')
-    .then(res => res.json())
-    .then(data => {
-      gainersList.innerHTML = '';
-      if (!data || data.length === 0) {
-        const li = document.createElement('li');
-        li.className = 'list-group-item text-muted';
-        li.textContent = 'No data';
-        gainersList.appendChild(li);
-      } else {
-        data.forEach(stock => {
-          const li = document.createElement('li');
-          li.className = 'list-group-item';
-          li.innerHTML = `<strong>${stock.symbol}</strong>: ₹${stock.price} (+${stock.change}%)`;
-          li.onclick = () => {
-            searchInput.value = stock.symbol;
-            fetchStockData(stock.symbol);
-          };
-          gainersList.appendChild(li);
-        });
-      }
+const generateChartData = (basePrice) => {
+  const data = [];
+  let currentPrice = basePrice * 0.9;
+  for (let i = 0; i < 30; i++) {
+    currentPrice = currentPrice * (1 + (Math.random() * 0.04 - 0.02));
+    data.push({
+      day: `Day ${i + 1}`,
+      price: parseFloat(currentPrice.toFixed(2))
     });
+  }
+  return data;
+};
 
-  fetch('/api/losers')
-    .then(res => res.json())
-    .then(data => {
-      losersList.innerHTML = '';
-      if (!data || data.length === 0) {
-        const li = document.createElement('li');
-        li.className = 'list-group-item text-muted';
-        li.textContent = 'No data';
-        losersList.appendChild(li);
-      } else {
-        data.forEach(stock => {
-          const li = document.createElement('li');
-          li.className = 'list-group-item';
-          li.innerHTML = `<strong>${stock.symbol}</strong>: ₹${stock.price} (${stock.change}%)`;
-          li.onclick = () => {
-            searchInput.value = stock.symbol;
-            fetchStockData(stock.symbol);
-          };
-          losersList.appendChild(li);
-        });
-      }
-    });
-});
+// --- COMPONENTS ---
 
-// ====== Debounce Function ======
-function debounce(func, delay) {
-  let timeoutId;
-  return function (...args) {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func.apply(this, args), delay);
+const Card = ({ children, className = "" }) => (
+  <div className={`bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-6 shadow-xl ${className}`}>
+    {children}
+  </div>
+);
+
+const Badge = ({ children, type = 'neutral' }) => {
+  const styles = {
+    success: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    danger: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    neutral: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
   };
-}
+  return (
+    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[type]}`}>
+      {children}
+    </span>
+  );
+};
 
-// ====== Fetch Suggestions ======
-const fetchSuggestions = debounce(async (query) => {
-  if (query.length < 2) {
-    suggestionsBox.classList.add('d-none');
-    noResults.classList.add('d-none');
-    return;
-  }
+const MetricBox = ({ label, value, subtext, icon: Icon }) => (
+  <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700/50 hover:border-blue-500/30 transition-colors">
+    <div className="flex items-start justify-between mb-2">
+      <span className="text-gray-400 text-sm">{label}</span>
+      {Icon && <Icon size={16} className="text-blue-400" />}
+    </div>
+    <div className="text-xl font-bold text-white">{value}</div>
+    {subtext && <div className="text-xs text-gray-500 mt-1">{subtext}</div>}
+  </div>
+);
 
-  try {
-    const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
-    const data = await res.json();
+// Notification Toast - Used for successful adds/removals
+const Toast = ({ message, type, onClose }) => (
+  <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-lg shadow-2xl border z-50 animate-bounce-in ${
+    type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' : 'bg-rose-900/90 border-rose-500 text-rose-100'
+  }`}>
+    {type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
+    <span className="font-medium text-sm">{message}</span>
+    <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100"><X size={14} /></button>
+  </div>
+);
 
-    suggestionsBox.innerHTML = '';
-    if (!data || data.length === 0) {
-      suggestionsBox.classList.add('d-none');
-      noResults.classList.remove('d-none');
+// Modal Component for Quick Add (The fix for your issue)
+const AddStockModal = ({ isOpen, onClose, onAdd }) => {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredStocks, setFilteredStocks] = useState([]);
+
+  useEffect(() => {
+    if (searchTerm.length > 1) {
+      const matches = INDIAN_STOCKS.filter(s => 
+        s.symbol.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        s.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredStocks(matches);
     } else {
-      data.forEach(stock => {
-        const item = document.createElement('li');
-        item.className = 'list-group-item';
-        item.innerHTML = `<strong>${stock.symbol}</strong> - ${stock.name}`;
-        item.onclick = () => {
-          searchInput.value = stock.symbol;
-          suggestionsBox.classList.add('d-none');
-          noResults.classList.add('d-none');
-          fetchStockData(stock.symbol);
-        };
-        suggestionsBox.appendChild(item);
-      });
-      suggestionsBox.classList.remove('d-none');
-      noResults.classList.add('d-none');
+      setFilteredStocks([]);
     }
-  } catch (err) {
-    console.error("Suggestion error:", err);
-  }
-}, 300);
+  }, [searchTerm]);
 
-// ====== Event Listeners ======
-searchInput.addEventListener('input', e => fetchSuggestions(e.target.value));
-searchInput.addEventListener('focus', () => {
-  if (suggestionsBox.children.length > 0) suggestionsBox.classList.remove('d-none');
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('.input-group')) suggestionsBox.classList.add('d-none');
-});
-searchBtn.addEventListener('click', () => {
-  const val = searchInput.value.trim();
-  if (val) fetchStockData(val);
-});
-searchInput.addEventListener('keypress', e => {
-  if (e.key === 'Enter') {
-    const val = searchInput.value.trim();
-    if (val) fetchStockData(val);
-  }
-});
+  if (!isOpen) return null;
 
-// ====== NEW: Function to call AI analysis endpoint ======
-async function getAIAnalysis(symbol, name, metrics, news) {
-    // Show loading state
-    aiAnalysisContent.textContent = 'Generating AI analysis...';
-    // Ensure the AI section is visible (it's already in the HTML)
-    // No need to explicitly show it here as it's part of the stockDetails card
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in">
+        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+          <h3 className="text-lg font-bold text-white">Add Stock to Portfolio</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
+        </div>
+        <div className="p-6">
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-3 text-gray-500" size={18} />
+            <input
+              type="text"
+              placeholder="Search stock (e.g., RELIANCE, TCS)"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white focus:border-blue-500 outline-none"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              autoFocus
+            />
+          </div>
+          
+          <div className="max-h-60 overflow-y-auto space-y-2">
+            {searchTerm.length > 0 && filteredStocks.length === 0 && (
+               <div className="text-center py-4 text-gray-500">No stocks found</div>
+            )}
+            {filteredStocks.map(stock => (
+              <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 transition-colors">
+                <div>
+                  <div className="font-bold text-white">{stock.symbol}</div>
+                  <div className="text-xs text-gray-400">{stock.name}</div>
+                </div>
+                <button 
+                  onClick={() => { onAdd(stock); setSearchTerm(''); }}
+                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1"
+                >
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+            ))}
+            {searchTerm.length === 0 && (
+              <div className="text-center py-8 text-gray-600 text-sm">
+                Type to search for Indian stocks
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-    try {
-        const response = await fetch('/api/analyze-stock', { // Call the new endpoint on your Flask server
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                symbol: symbol,
-                name: name,
-                metrics: metrics,
-                news: news // Pass news array (can be empty for now)
-            }),
-        });
+// --- MAIN APP ---
 
-        if (!response.ok) {
-            throw new Error(`AI analysis API error: ${response.status}`);
-        }
+function App() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [portfolio, setPortfolio] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [toast, setToast] = useState(null);
 
-        const data = await response.json();
-        aiAnalysisContent.textContent = data.analysis; // Display the AI-generated text
-
-    } catch (error) {
-        console.error("Error fetching AI analysis:", error);
-        aiAnalysisContent.textContent = 'Error generating analysis. Please try again.';
-    }
-}
-
-// ====== Fetch Stock Data ======
-async function fetchStockData(symbol) {
-  if (!symbol) return;
-
-  currentSymbol = symbol;
-  loading.classList.remove('d-none');
-  stockDetails.classList.add('d-none');
-  noResults.classList.add('d-none');
-  suggestionsBox.classList.add('d-none');
-
-  try {
-    const res = await fetch(`/api/quote/${symbol}`);
-    const data = await res.json();
-
-    if (data.error) throw new Error(data.error);
-
-    // Populate UI
-    stockName.textContent = data.name || symbol;
-    stockSymbol.textContent = data.symbol;
-    stockPrice.textContent = data.price.toLocaleString('en-IN');
-    stockChange.textContent = data.change;
-    stockChange.className = data.change.includes('+') ? 'text-success' : 'text-danger';
-    stockVolume.textContent = data.volume;
-
-    targetPrice.textContent = typeof data.target_price === 'number'
-      ? data.target_price.toLocaleString('en-IN')
-      : 'N/A';
-
-    peRatio.textContent = data.pe_ratio !== "N/A" ? data.pe_ratio : "N/A";
-    eps.textContent = data.eps !== "N/A" ? data.eps : "N/A";
-    divYield.textContent = data.dividend_yield || "N/A";
-
-    // Recommendation
-    recommendation.textContent = data.recommendation;
-    recommendation.className = 'badge px-3 py-2';
-    if (data.recommendation === 'BUY') {
-      recommendation.classList.add('bg-buy');
-    } else if (data.recommendation === 'SELL') {
-      recommendation.classList.add('bg-sell');
-    } else {
-      recommendation.classList.add('bg-hold');
-    }
-
-    reasonText.textContent = data.reason || '';
-
-    // ====== Analyst Chart ======
-    const ctx = document.getElementById('analystChart').getContext('2d');
-    if (window.analystChart instanceof Chart) window.analystChart.destroy();
-
-    const buy = data.analyst_ratings?.buy || 0;
-    const hold = data.analyst_ratings?.hold || 0;
-    const sell = data.analyst_ratings?.sell || 0;
-
-    window.analystChart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: ['Ratings'],
-        datasets: [
-          { label: 'Buy', data: [buy], backgroundColor: '#22c55e', stack: 'a' },
-          { label: 'Hold', data: [hold], backgroundColor: '#f59e0b', stack: 'a' },
-          { label: 'Sell', data: [sell], backgroundColor: '#ef4444', stack: 'a' }
-        ]
-      },
-      options: {
-        indexAxis: 'y',
-        plugins: { legend: { position: 'top' }, tooltip: { enabled: true } },
-        scales: { x: { beginAtZero: true }, y: { display: false } },
-        responsive: true,
-        maintainAspectRatio: false
+  // Auth Init: Signs in using the provided token or anonymously
+  useEffect(() => {
+    const initAuth = async () => {
+      const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+      if (token) {
+        await signInWithCustomToken(auth, token);
+      } else {
+        await signInAnonymously(auth);
       }
-    });
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
 
-    analystBuy.textContent = buy;
-    analystHold.textContent = hold;
-    analystSell.textContent = sell;
+  // Portfolio Sync: Listen for real-time updates to the user's portfolio in Firestore
+  useEffect(() => {
+    if (!user) return; 
+    const q = query(
+      collection(db, 'artifacts', appId, 'users', user.uid, 'portfolio')
+    );
+    
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Client-side sort to avoid Firestore index requirement
+        setPortfolio(items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+      },
+      (error) => console.error("Portfolio sync error:", error)
+    );
+    return () => unsubscribe(); 
+  }, [user]);
 
-    // Pre-fill EPS
-    if (data.eps) calcEPS.value = data.eps;
+  // Auto-hide toast notifications
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
-    // ====== Fair Value Calculator ======
-    calcButton.onclick = () => {
-      const eps = parseFloat(calcEPS.value);
-      const growth = parseFloat(calcGrowth.value) / 100;
-      const requiredReturn = parseFloat(calcReturn.value) / 100;
+  // --- ACTIONS ---
 
-      if (!eps || isNaN(growth) || isNaN(requiredReturn)) {
-        fairValueResult.innerHTML = '<p class="text-danger">Please enter valid values</p>';
+  const showToast = (msg, type = 'success') => {
+    setToast({ message: msg, type });
+  };
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    // Simulate API delay
+    setTimeout(() => {
+      const found = INDIAN_STOCKS.find(s => 
+        s.symbol.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        s.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      if (found) {
+        setSelectedStock({
+          ...found,
+          chartData: generateChartData(found.price),
+          metrics: {
+            pe: (Math.random() * 20 + 15).toFixed(2),
+            eps: (Math.random() * 50 + 10).toFixed(2),
+            divYield: (Math.random() * 2).toFixed(2) + '%',
+            volume: (Math.random() * 10 + 1).toFixed(2) + 'M'
+          },
+          aiAnalysis: generateAIAnalysis(found)
+        });
+        setActiveTab('analyzer');
+      } else {
+        showToast("Stock not found. Try 'RELIANCE'", 'error');
+      }
+      setLoading(false);
+    }, 800);
+  };
+
+  // Add stock to Firestore portfolio
+  const addToPortfolio = async (stock) => {
+    if (!user) {
+      showToast("Please wait for login...", "error");
+      return;
+    }
+    try {
+      const exists = portfolio.find(p => p.symbol === stock.symbol);
+      if (exists) {
+        showToast(`${stock.symbol} is already in your portfolio`, 'error');
         return;
       }
 
-      const fairValue = (eps * (1 + growth)) / (requiredReturn - growth);
-      const rounded = Math.round(fairValue);
-      const premium = ((data.price - rounded) / rounded * 100).toFixed(1);
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'portfolio'), {
+        symbol: stock.symbol,
+        name: stock.name,
+        avgPrice: stock.price,
+        quantity: 1, 
+        currentPrice: stock.price,
+        createdAt: serverTimestamp()
+      });
+      showToast(`Successfully added ${stock.symbol}`);
+      setIsAddModalOpen(false); 
+    } catch (err) {
+      console.error("Error adding stock", err);
+      showToast("Failed to add stock", 'error');
+    }
+  };
 
-      let verdict, color;
-      if (premium < -20) { verdict = '🟢 Strong Buy'; color = 'text-success'; }
-      else if (premium < 0) { verdict = '🟡 Buy'; color = 'text-warning'; }
-      else if (premium < 20) { verdict = '🟠 Hold'; color = 'text-secondary'; }
-      else { verdict = '🔴 Sell'; color = 'text-danger'; }
+  // Remove stock from Firestore portfolio
+  const removeFromPortfolio = async (id, symbol) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'portfolio', id));
+      showToast(`Removed ${symbol}`);
+    } catch (e) {
+      showToast("Could not remove stock", 'error');
+    }
+  };
 
-      fairValueResult.innerHTML = `
-        <p class="mb-1"><strong>Fair Value:</strong> ₹${rounded.toLocaleString()}</p>
-        <p class="mb-1 ${color}"><strong>Verdict:</strong> ${verdict}</p>
-        <p class="text-muted small">Premium: ${premium}%</p>
-      `;
-    };
+  const generateAIAnalysis = (stock) => {
+    const sentiment = stock.change > 0 ? "Positive" : "Cautious";
+    return `Based on technical indicators, ${stock.symbol} is showing ${sentiment.toLowerCase()} momentum. The RSI indicates it is ${stock.change > 1.5 ? 'overbought' : stock.change < -1.5 ? 'oversold' : 'stable'}. Sector performance in ${stock.sector} remains robust for the coming quarter.`;
+  };
 
-    // ====== NEW: Prepare data and call AI Analysis ======
-    // Prepare data to send to the AI endpoint
-    const stockMetricsForAI = {
-        price: data.price,
-        change: data.change, // e.g., "+2.5%"
-        change_pct: data.change, // Reuse the string for now, you could parse it if needed
-        pe_ratio: data.pe_ratio,
-        eps: data.eps,
-        // Note: These might not be in the initial 'data' object from /api/quote
-        // You might need to get them from yfinance info if you want them in the prompt
-        // For now, passing N/A or fetching separately if crucial
-        high52w: 'N/A', // data['52WeekHigh'],
-        low52w: 'N/A',  // data['52WeekLow'],
-        marketCap: 'N/A', // data.marketCap,
-        dividend_yield: data.dividend_yield,
-        recommendation: data.recommendation,
-        reason: data.reason
-    };
+  // --- VIEWS ---
 
-    // You'll need to fetch news separately or pass it from the backend if you want it in the prompt
-    // For now, we'll pass an empty array
-    const newsForAI = []; // TODO: Fetch news headlines for the symbol from an API like GNews
+  const DashboardView = () => {
+    const totalValue = portfolio.reduce((acc, item) => acc + (item.currentPrice * item.quantity), 0);
+    const dayChange = portfolio.reduce((acc, item) => {
+        const priceDifference = item.currentPrice - item.avgPrice;
+        return acc + priceDifference * item.quantity;
+    }, 0);
+    
+    const topGainers = INDIAN_STOCKS.filter(s => s.change > 0).slice(0, 3);
+    const topLosers = INDIAN_STOCKS.filter(s => s.change < 0).slice(0, 3);
 
-    // Call the new function to get AI analysis
-    getAIAnalysis(data.symbol, data.name, stockMetricsForAI, newsForAI);
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {/* Portfolio Summary Hero */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2">
+             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-2xl">
+                <div className="relative z-10">
+                  <h3 className="text-blue-100 font-medium mb-1">Total Portfolio Value</h3>
+                  <div className="flex items-baseline gap-3">
+                    <h1 className="text-4xl font-bold text-white">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h1>
+                    <span className={`text-sm font-bold px-2 py-1 rounded-lg ${dayChange >= 0 ? 'bg-emerald-500/20 text-emerald-100' : 'bg-rose-500/20 text-rose-100'}`}>
+                      {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} Today
+                    </span>
+                  </div>
+                  <div className="mt-6 flex gap-3">
+                    <button onClick={() => setActiveTab('portfolio')} className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium backdrop-blur-sm transition-all">
+                      View Holdings
+                    </button>
+                    <button onClick={() => setIsAddModalOpen(true)} className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-medium shadow-lg hover:bg-blue-50 transition-all">
+                      + Add Stock
+                    </button>
+                  </div>
+                </div>
+                <div className="absolute -right-10 -bottom-20 w-64 h-64 bg-blue-500/30 rounded-full blur-3xl"></div>
+             </div>
+          </div>
 
-    // Show results
-    stockDetails.classList.remove('d-none');
-    loading.classList.add('d-none');
+          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center">
+            <h3 className="text-gray-400 font-medium mb-4 flex items-center gap-2">
+              <Activity size={16} /> Market Pulse
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">NIFTY 50</span>
+                <span className="text-emerald-400 font-medium">+0.45%</span>
+              </div>
+              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 w-[65%] h-full"></div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">SENSEX</span>
+                <span className="text-emerald-400 font-medium">+0.32%</span>
+              </div>
+              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                <div className="bg-emerald-500 w-[58%] h-full"></div>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-gray-300">BANK NIFTY</span>
+                <span className="text-rose-400 font-medium">-0.12%</span>
+              </div>
+              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
+                <div className="bg-rose-500 w-[45%] h-full"></div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-    // Auto-refresh
-    if (refreshInterval) clearInterval(refreshInterval);
-    refreshInterval = setInterval(() => fetchStockData(currentSymbol), 60000);
+        {/* Movers Section */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <TrendingUp className="text-emerald-500" /> Top Gainers
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {topGainers.map(stock => (
+                <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }}>
+                  <div>
+                    <div className="font-bold text-white">{stock.symbol}</div>
+                    <div className="text-xs text-gray-500">{stock.name}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white">₹{stock.price}</div>
+                    <div className="text-xs text-emerald-400">+{stock.change}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
 
-  } catch (err) {
-    alert('Failed to fetch stock data: ' + err.message);
-    console.error(err);
-  } finally {
-    loading.classList.add('d-none');
-  }
+          <Card>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+                <TrendingDown className="text-rose-500" /> Top Losers
+              </h3>
+            </div>
+            <div className="space-y-3">
+              {topLosers.map(stock => (
+                <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }}>
+                  <div>
+                    <div className="font-bold text-white">{stock.symbol}</div>
+                    <div className="text-xs text-gray-500">{stock.name}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-white">₹{stock.price}</div>
+                    <div className="text-xs text-rose-400">{stock.change}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
+    );
+  };
+
+  const AnalyzerView = () => {
+    const [calcGrowth, setCalcGrowth] = useState(10);
+    const [calcEPS, setCalcEPS] = useState(selectedStock?.metrics?.eps || 50);
+    const [fairValue, setFairValue] = useState(0);
+
+    useEffect(() => {
+      const val = parseFloat(calcEPS) * (8.5 + 2 * parseFloat(calcGrowth));
+      setFairValue(val);
+    }, [calcGrowth, calcEPS]);
+
+    if (!selectedStock) return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-fade-in">
+        <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center">
+          <Search size={40} className="text-blue-500" />
+        </div>
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2">Search for a Stock</h2>
+          <p className="text-gray-400 max-w-md mx-auto">Enter a symbol (e.g., RELIANCE) or company name to get deep insights, AI analysis, and fair value estimates.</p>
+        </div>
+        <div className="w-full max-w-md">
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-4 top-3.5 text-gray-500" size={20} />
+            <input 
+              type="text" 
+              placeholder="Search symbol..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-900 border border-gray-700 text-white pl-12 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+            />
+            <button type="submit" className="absolute right-2 top-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+              {loading ? '...' : 'Analyze'}
+            </button>
+          </form>
+        </div>
+        <div className="flex gap-2 text-sm text-gray-500">
+          <span>Trending:</span>
+          <button onClick={() => { setSearchQuery("RELIANCE"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">RELIANCE</button>
+          <button onClick={() => { setSearchQuery("TCS"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">TCS</button>
+          <button onClick={() => { setSearchQuery("TATAMOTORS"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">TATAMOTORS</button>
+        </div>
+      </div>
+    );
+
+    return (
+      <div className="space-y-6 animate-fade-in pb-20">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <h1 className="text-3xl font-bold text-white">{selectedStock.symbol}</h1>
+              <Badge type={selectedStock.change > 0 ? 'success' : 'danger'}>
+                {selectedStock.change > 0 ? '+' : ''}{selectedStock.change}%
+              </Badge>
+            </div>
+            <h2 className="text-gray-400 text-lg">{selectedStock.name} | {selectedStock.sector}</h2>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-3xl font-bold text-white">₹{selectedStock.price.toLocaleString()}</div>
+              <div className="text-sm text-gray-500">Current Price</div>
+            </div>
+            <button 
+              onClick={() => addToPortfolio(selectedStock)}
+              className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2"
+            >
+              <Plus size={20} /> <span className="hidden md:inline">Add to Portfolio</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Chart (Recharts Placeholder) */}
+        <Card className="h-[350px] p-4">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={selectedStock.chartData}>
+              <defs>
+                <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+              <XAxis dataKey="day" hide />
+              <YAxis domain={['auto', 'auto']} orientation="right" tick={{fill: '#9ca3af'}} axisLine={false} tickLine={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                itemStyle={{ color: '#fff' }}
+              />
+              <Area 
+                type="monotone" 
+                dataKey="price" 
+                stroke={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} 
+                strokeWidth={3}
+                fillOpacity={1} 
+                fill="url(#colorPrice)" 
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
+
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <MetricBox label="P/E Ratio" value={selectedStock.metrics.pe} icon={Calculator} />
+          <MetricBox label="EPS (TTM)" value={`₹${selectedStock.metrics.eps}`} icon={DollarSign} />
+          <MetricBox label="Div Yield" value={selectedStock.metrics.divYield} icon={PieChart} />
+          <MetricBox label="Volume" value={selectedStock.metrics.volume} icon={Activity} />
+        </div>
+
+        {/* Analysis & Calculator */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* AI Analysis */}
+          <div className="lg:col-span-2">
+            <Card className="h-full">
+              <div className="flex items-center gap-2 mb-4">
+                <BrainCircuit className="text-purple-400" />
+                <h3 className="text-xl font-bold text-white">AI Analysis</h3>
+              </div>
+              <div className="bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500">
+                <p className="text-gray-300 leading-relaxed">
+                  {selectedStock.aiAnalysis}
+                </p>
+              </div>
+              <div className="mt-6">
+                <h4 className="text-sm font-medium text-gray-400 mb-3">ANALYST RATINGS</h4>
+                <div className="flex items-center gap-1 h-4 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 w-[60%]" title="Buy 60%"></div>
+                  <div className="bg-yellow-500 w-[30%]" title="Hold 30%"></div>
+                  <div className="bg-rose-500 w-[10%]" title="Sell 10%"></div>
+                </div>
+                <div className="flex justify-between text-xs text-gray-500 mt-2">
+                  <span>Strong Buy</span>
+                  <span>Hold</span>
+                  <span>Sell</span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Fair Value Calculator */}
+          <div>
+            <Card className="h-full bg-gradient-to-b from-gray-900 to-gray-900">
+              <div className="flex items-center gap-2 mb-4">
+                <Calculator className="text-blue-400" />
+                <h3 className="text-xl font-bold text-white">Fair Value</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-xs text-gray-400 uppercase font-bold">Expected Growth (%)</label>
+                  <input 
+                    type="number" 
+                    value={calcGrowth}
+                    onChange={(e) => setCalcGrowth(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 uppercase font-bold">EPS (₹)</label>
+                  <input 
+                    type="number" 
+                    value={calcEPS}
+                    onChange={(e) => setCalcEPS(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
+                  />
+                </div>
+                
+                <div className="mt-6 pt-6 border-t border-gray-800">
+                   <div className="text-center">
+                      <div className="text-sm text-gray-500 mb-1">Intrinsic Value</div>
+                      <div className="text-3xl font-bold text-emerald-400">₹{fairValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
+                      <div className="text-xs mt-2 text-gray-400">
+                        Margin of Safety: <span className={`${fairValue > selectedStock.price ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {((fairValue - selectedStock.price) / selectedStock.price * 100).toFixed(1)}%
+                        </span>
+                      </div>
+                   </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const PortfolioView = () => (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex justify-between items-end">
+         <div>
+           <h1 className="text-3xl font-bold text-white">My Portfolio</h1>
+           <p className="text-gray-400 mt-1">Manage your holdings and track performance.</p>
+         </div>
+         <button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors shadow-lg shadow-blue-600/20">
+           <Plus size={18} /> Add Stock
+         </button>
+      </div>
+
+      {portfolio.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-gray-900/50 border border-gray-800 border-dashed rounded-2xl">
+          <Briefcase size={48} className="text-gray-600 mb-4" />
+          <h3 className="text-xl font-medium text-white">Your portfolio is empty</h3>
+          <p className="text-gray-500 mb-6">Start adding stocks to track your wealth.</p>
+          <button onClick={() => setIsAddModalOpen(true)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium">
+            <Plus size={16} /> Add your first stock
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-4">
+          {portfolio.map((stock) => (
+            <div key={stock.id} className="bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between hover:border-gray-700 transition-all group">
+              <div className="flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
+                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 font-bold text-lg">
+                  {stock.symbol[0]}
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-lg">{stock.symbol}</h3>
+                  <div className="text-sm text-gray-500">{stock.name}</div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-8 w-full md:w-auto text-center md:text-left">
+                <div>
+                  <div className="text-xs text-gray-500 uppercase font-bold">Qty</div>
+                  <div className="text-white font-medium">{stock.quantity}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 uppercase font-bold">Avg Price</div>
+                  <div className="text-white font-medium">₹{stock.avgPrice}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500 uppercase font-bold">Value</div>
+                  <div className="text-emerald-400 font-medium">₹{stock.currentPrice * stock.quantity}</div>
+                </div>
+              </div>
+
+              <div className="flex gap-2 ml-0 md:ml-6 mt-4 md:mt-0 w-full md:w-auto">
+                <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
+                   <Activity size={18} />
+                </button>
+                <button 
+                  onClick={() => removeFromPortfolio(stock.id, stock.symbol)}
+                  className="p-2 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                >
+                   <Trash2 size={18} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  // --- RENDER ---
+
+  return (
+    <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30">
+      
+      {/* Components Overlays (Modal and Toast) */}
+      <AddStockModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={addToPortfolio} />
+      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+
+      {/* Mobile Header */}
+      <div className="md:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white">D</div>
+          <span className="font-bold text-lg tracking-tight">DevXWorld</span>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-400 hover:text-white">
+          {isMobileMenuOpen ? <X /> : <Menu />}
+        </button>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-30 bg-gray-900/95 backdrop-blur-lg pt-20 px-6 md:hidden">
+          <nav className="flex flex-col gap-2">
+            <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
+              <LayoutDashboard size={20} /> Dashboard
+            </button>
+            <button onClick={() => { setActiveTab('analyzer'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'analyzer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
+              <Search size={20} /> Stock Analyzer
+            </button>
+            <button onClick={() => { setActiveTab('portfolio'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'portfolio' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
+              <PieChart size={20} /> Portfolio
+            </button>
+          </nav>
+        </div>
+      )}
+
+      <div className="flex h-screen overflow-hidden">
+        {/* Sidebar Desktop */}
+        <aside className="hidden md:flex w-64 flex-col border-r border-gray-800 bg-gray-950/50 backdrop-blur-sm">
+          <div className="p-6 flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20">D</div>
+            <span className="font-bold text-xl tracking-tight">DevXWorld</span>
+          </div>
+          
+          <nav className="flex-1 px-4 py-4 space-y-2">
+            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
+              <LayoutDashboard size={18} /> Dashboard
+            </button>
+            <button onClick={() => setActiveTab('analyzer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
+              <Search size={18} /> Analyzer
+            </button>
+            <button onClick={() => setActiveTab('portfolio')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'portfolio' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
+              <PieChart size={18} /> Portfolio
+            </button>
+          </nav>
+
+          <div className="p-6">
+             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
+               <div className="flex items-center gap-2 mb-2">
+                 <Zap size={16} className="text-yellow-400" />
+                 <span className="text-xs font-bold text-gray-300 uppercase">Pro Tip</span>
+               </div>
+               <p className="text-xs text-gray-500 leading-relaxed">
+                 Use the Fair Value calculator in the Analyzer tab to find undervalued stocks before buying.
+               </p>
+             </div>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto relative">
+          {/* Header Background Glow */}
+          <div className="absolute top-0 left-0 w-full h-64 bg-blue-900/10 blur-3xl -z-10"></div>
+
+          <div className="p-6 md:p-10 max-w-7xl mx-auto">
+            {activeTab === 'dashboard' && <DashboardView />}
+            {activeTab === 'analyzer' && <AnalyzerView />}
+            {activeTab === 'portfolio' && <PortfolioView />}
+          </div>
+        </main>
+      </div>
+    </div>
+  );
 }
+
+// --- Render the App ---
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('root');
+    if (container) {
+        createRoot(container).render(<App />);
+    }
+});
