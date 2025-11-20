@@ -1,54 +1,62 @@
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  deleteDoc, 
-  doc, 
-  onSnapshot, 
-  query, 
-  serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { 
-  LayoutDashboard, 
-  Search, 
-  PieChart, 
-  TrendingUp, 
-  TrendingDown, 
-  Activity, 
-  Zap, 
-  Plus, 
-  Trash2, 
-  Menu, 
-  X, 
-  Calculator, 
-  BrainCircuit,
-  DollarSign,
-  Briefcase,
-  CheckCircle,
-  AlertCircle 
-} from 'https://cdn.jsdelivr.net/npm/lucide-react@0.363.0/+esm';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip 
-} from 'https://cdn.skypack.dev/recharts@2.12.7';
+// All dependencies (React, ReactDOM, Firebase V8, Recharts) are now loaded via script tags in index.html, 
+// making them available as global variables.
 
-const { useState, useEffect } = React;
-const { createRoot } = ReactDOM;
+// --- Global Aliases ---
+const useState = React.useState;
+const useEffect = React.useEffect;
+const createElement = React.createElement;
+const createRoot = ReactDOM.createRoot;
+
+// CRITICAL FIX: Access services directly from the global firebase object (V8 syntax)
+const auth = firebase.auth(); 
+const db = firebase.firestore();
+
+// --- LUCIDE ICONS (Redefine simplified functions for global scope) ---
+// Since we can't easily import Lucide-React without a build step, we define simple functional components
+// to ensure the app renders without errors.
+const Icon = (name, className) => {
+    // Map simplified names to default text representation for fallbacks
+    const iconMap = {
+        LayoutDashboard: 'DASH', Search: 'SRCH', PieChart: 'PORT', TrendingUp: 'UP', TrendingDown: 'DOWN',
+        Activity: 'ACT', Zap: 'TIP', Plus: '+', Trash2: 'TRASH', Menu: 'MENU', X: 'X',
+        Calculator: 'CALC', BrainCircuit: 'AI', DollarSign: '$', Briefcase: 'BRIEF', CheckCircle: '✓', AlertCircle: '!'
+    };
+    return createElement('span', { className: 'text-white ' + className }, iconMap[name] || '?');
+};
+
+const LayoutDashboard = (props) => createElement('span', props, Icon('LayoutDashboard', props.className));
+const Search = (props) => createElement('span', props, Icon('Search', props.className));
+const PieChart = (props) => createElement('span', props, Icon('PieChart', props.className));
+const TrendingUp = (props) => createElement('span', props, Icon('TrendingUp', props.className));
+const TrendingDown = (props) => createElement('span', props, Icon('TrendingDown', props.className));
+const Activity = (props) => createElement('span', props, Icon('Activity', props.className));
+const Zap = (props) => createElement('span', props, Icon('Zap', props.className));
+const Plus = (props) => createElement('span', props, Icon('Plus', props.className));
+const Trash2 = (props) => createElement('span', props, Icon('Trash2', props.className));
+const Menu = (props) => createElement('span', props, Icon('Menu', props.className));
+const X = (props) => createElement('span', props, Icon('X', props.className));
+const Calculator = (props) => createElement('span', props, Icon('Calculator', props.className));
+const BrainCircuit = (props) => createElement('span', props, Icon('BrainCircuit', props.className));
+const DollarSign = (props) => createElement('span', props, Icon('DollarSign', props.className));
+const Briefcase = (props) => createElement('span', props, Icon('Briefcase', props.className));
+const CheckCircle = (props) => createElement('span', props, Icon('CheckCircle', props.className));
+const AlertCircle = (props) => createElement('span', props, Icon('AlertCircle', props.className));
+
+
+// --- DEPENDENCY HOOKS (Recharts) ---
+const ResponsiveContainer = Recharts.ResponsiveContainer;
+const AreaChart = Recharts.AreaChart;
+const Area = Recharts.Area;
+const XAxis = Recharts.XAxis;
+const YAxis = Recharts.YAxis;
+const CartesianGrid = Recharts.CartesianGrid;
+const Tooltip = Recharts.Tooltip;
 
 // --- FIREBASE SETUP ---
-// Ensure compatibility with environment variables
 const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+const app = firebase.initializeApp(firebaseConfig); 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer';
+
 
 // --- MOCK DATA ENGINE (Simulates your stock API) ---
 const INDIAN_STOCKS = [
@@ -85,9 +93,7 @@ const generateChartData = (basePrice) => {
 // --- COMPONENTS ---
 
 const Card = ({ children, className = "" }) => (
-  <div className={`bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-6 shadow-xl ${className}`}>
-    {children}
-  </div>
+  createElement('div', { className: `bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-6 shadow-xl ${className}` }, children)
 );
 
 const Badge = ({ children, type = 'neutral' }) => {
@@ -98,32 +104,30 @@ const Badge = ({ children, type = 'neutral' }) => {
     warning: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
   };
   return (
-    <span className={`px-3 py-1 rounded-full text-xs font-medium border ${styles[type]}`}>
-      {children}
-    </span>
+    createElement('span', { className: `px-3 py-1 rounded-full text-xs font-medium border ${styles[type]}` }, children)
   );
 };
 
-const MetricBox = ({ label, value, subtext, icon: Icon }) => (
-  <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700/50 hover:border-blue-500/30 transition-colors">
-    <div className="flex items-start justify-between mb-2">
-      <span className="text-gray-400 text-sm">{label}</span>
-      {Icon && <Icon size={16} className="text-blue-400" />}
-    </div>
-    <div className="text-xl font-bold text-white">{value}</div>
-    {subtext && <div className="text-xs text-gray-500 mt-1">{subtext}</div>}
-  </div>
+const MetricBox = ({ label, value, subtext, icon: IconComponent }) => (
+  createElement('div', { className: "bg-gray-800/40 rounded-lg p-4 border border-gray-700/50 hover:border-blue-500/30 transition-colors" },
+    createElement('div', { className: "flex items-start justify-between mb-2" },
+      createElement('span', { className: "text-gray-400 text-sm" }, label),
+      IconComponent && createElement(IconComponent, { size: 16, className: "text-blue-400" })
+    ),
+    createElement('div', { className: "text-xl font-bold text-white" }, value),
+    subtext && createElement('div', { className: "text-xs text-gray-500 mt-1" }, subtext)
+  )
 );
 
 // Notification Toast - Used for successful adds/removals
 const Toast = ({ message, type, onClose }) => (
-  <div className={`fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-lg shadow-2xl border z-50 animate-bounce-in ${
+  createElement('div', { className: `fixed bottom-6 right-6 flex items-center gap-3 px-4 py-3 rounded-lg shadow-2xl border z-50 animate-bounce-in ${
     type === 'success' ? 'bg-emerald-900/90 border-emerald-500 text-emerald-100' : 'bg-rose-900/90 border-rose-500 text-rose-100'
-  }`}>
-    {type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-    <span className="font-medium text-sm">{message}</span>
-    <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100"><X size={14} /></button>
-  </div>
+  }` },
+    type === 'success' ? createElement(CheckCircle, { size: 18 }) : createElement(AlertCircle, { size: 18 }),
+    createElement('span', { className: "font-medium text-sm" }, message),
+    createElement('button', { onClick: onClose, className: "ml-2 opacity-60 hover:opacity-100" }, createElement(X, { size: 14 }))
+  )
 );
 
 // Modal Component for Quick Add (The fix for your issue)
@@ -146,52 +150,50 @@ const AddStockModal = ({ isOpen, onClose, onAdd }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in">
-        <div className="p-4 border-b border-gray-800 flex justify-between items-center">
-          <h3 className="text-lg font-bold text-white">Add Stock to Portfolio</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><X size={20} /></button>
-        </div>
-        <div className="p-6">
-          <div className="relative mb-4">
-            <Search className="absolute left-3 top-3 text-gray-500" size={18} />
-            <input
-              type="text"
-              placeholder="Search stock (e.g., RELIANCE, TCS)"
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white focus:border-blue-500 outline-none"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              autoFocus
-            />
-          </div>
+    createElement('div', { className: "fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" },
+      createElement('div', { className: "bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-fade-in" },
+        createElement('div', { className: "p-4 border-b border-gray-800 flex justify-between items-center" },
+          createElement('h3', { className: "text-lg font-bold text-white" }, "Add Stock to Portfolio"),
+          createElement('button', { onClick: onClose, className: "text-gray-400 hover:text-white" }, createElement(X, { size: 20 }))
+        ),
+        createElement('div', { className: "p-6" },
+          createElement('div', { className: "relative mb-4" },
+            createElement(Search, { className: "absolute left-3 top-3 text-gray-500", size: 18 }),
+            createElement('input', {
+              type: "text",
+              placeholder: "Search stock (e.g., RELIANCE, TCS)",
+              className: "w-full bg-gray-800 border border-gray-700 rounded-lg py-2 pl-10 pr-4 text-white focus:border-blue-500 outline-none",
+              value: searchTerm,
+              onChange: (e) => setSearchTerm(e.target.value),
+              autoFocus: true
+            })
+          ),
           
-          <div className="max-h-60 overflow-y-auto space-y-2">
-            {searchTerm.length > 0 && filteredStocks.length === 0 && (
-               <div className="text-center py-4 text-gray-500">No stocks found</div>
-            )}
-            {filteredStocks.map(stock => (
-              <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 transition-colors">
-                <div>
-                  <div className="font-bold text-white">{stock.symbol}</div>
-                  <div className="text-xs text-gray-400">{stock.name}</div>
-                </div>
-                <button 
-                  onClick={() => { onAdd(stock); setSearchTerm(''); }}
-                  className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1"
-                >
-                  <Plus size={14} /> Add
-                </button>
-              </div>
-            ))}
-            {searchTerm.length === 0 && (
-              <div className="text-center py-8 text-gray-600 text-sm">
-                Type to search for Indian stocks
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+          createElement('div', { className: "max-h-60 overflow-y-auto space-y-2" },
+            searchTerm.length > 0 && filteredStocks.length === 0 && (
+               createElement('div', { className: "text-center py-4 text-gray-500" }, "No stocks found")
+            ),
+            filteredStocks.map(stock => (
+              createElement('div', { key: stock.symbol, className: "flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-700 transition-colors" },
+                createElement('div', null,
+                  createElement('div', { className: "font-bold text-white" }, stock.symbol),
+                  createElement('div', { className: "text-xs text-gray-400" }, stock.name)
+                ),
+                createElement('button', { 
+                  onClick: () => { onAdd(stock); setSearchTerm(''); },
+                  className: "bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-1"
+                },
+                  createElement(Plus, { size: 14 }), " Add"
+                )
+              )
+            )),
+            searchTerm.length === 0 && (
+              createElement('div', { className: "text-center py-8 text-gray-600 text-sm" }, "Type to search for Indian stocks")
+            )
+          )
+        )
+      )
+    )
   );
 };
 
@@ -214,27 +216,24 @@ function App() {
     const initAuth = async () => {
       const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
       if (token) {
-        await signInWithCustomToken(auth, token);
+        await auth.signInWithCustomToken(token); // V8 syntax
       } else {
-        await signInAnonymously(auth);
+        await auth.signInAnonymously(); // V8 syntax
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
+    const unsubscribe = auth.onAuthStateChanged(setUser); // V8 syntax
     return () => unsubscribe();
   }, []);
 
   // Portfolio Sync: Listen for real-time updates to the user's portfolio in Firestore
   useEffect(() => {
     if (!user) return; 
-    const q = query(
-      collection(db, 'artifacts', appId, 'users', user.uid, 'portfolio')
-    );
+    const q = db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('portfolio');
     
-    const unsubscribe = onSnapshot(q, 
+    const unsubscribe = q.onSnapshot( // V8 syntax
       (snapshot) => {
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        // Client-side sort to avoid Firestore index requirement
         setPortfolio(items.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
       },
       (error) => console.error("Portfolio sync error:", error)
@@ -298,13 +297,13 @@ function App() {
         return;
       }
 
-      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'portfolio'), {
+      await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('portfolio').add({
         symbol: stock.symbol,
         name: stock.name,
         avgPrice: stock.price,
         quantity: 1, 
         currentPrice: stock.price,
-        createdAt: serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp() // V8 syntax
       });
       showToast(`Successfully added ${stock.symbol}`);
       setIsAddModalOpen(false); 
@@ -318,7 +317,7 @@ function App() {
   const removeFromPortfolio = async (id, symbol) => {
     if (!user) return;
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'portfolio', id));
+      await db.collection('artifacts').doc(appId).collection('users').doc(user.uid).collection('portfolio').doc(id).delete(); // V8 syntax
       showToast(`Removed ${symbol}`);
     } catch (e) {
       showToast("Could not remove stock", 'error');
@@ -343,109 +342,107 @@ function App() {
     const topLosers = INDIAN_STOCKS.filter(s => s.change < 0).slice(0, 3);
 
     return (
-      <div className="space-y-6 animate-fade-in">
-        {/* Portfolio Summary Hero */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-2xl">
-                <div className="relative z-10">
-                  <h3 className="text-blue-100 font-medium mb-1">Total Portfolio Value</h3>
-                  <div className="flex items-baseline gap-3">
-                    <h1 className="text-4xl font-bold text-white">₹{totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h1>
-                    <span className={`text-sm font-bold px-2 py-1 rounded-lg ${dayChange >= 0 ? 'bg-emerald-500/20 text-emerald-100' : 'bg-rose-500/20 text-rose-100'}`}>
-                      {dayChange >= 0 ? '+' : ''}{dayChange.toFixed(2)} Today
-                    </span>
-                  </div>
-                  <div className="mt-6 flex gap-3">
-                    <button onClick={() => setActiveTab('portfolio')} className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium backdrop-blur-sm transition-all">
-                      View Holdings
-                    </button>
-                    <button onClick={() => setIsAddModalOpen(true)} className="bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-medium shadow-lg hover:bg-blue-50 transition-all">
-                      + Add Stock
-                    </button>
-                  </div>
-                </div>
-                <div className="absolute -right-10 -bottom-20 w-64 h-64 bg-blue-500/30 rounded-full blur-3xl"></div>
-             </div>
-          </div>
+      createElement('div', { className: "space-y-6 animate-fade-in" },
+        // Portfolio Summary Hero
+        createElement('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6" },
+          createElement('div', { className: "md:col-span-2" },
+            createElement('div', { className: "relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 shadow-2xl" },
+              createElement('div', { className: "relative z-10" },
+                createElement('h3', { className: "text-blue-100 font-medium mb-1" }, "Total Portfolio Value"),
+                createElement('div', { className: "flex items-baseline gap-3" },
+                  createElement('h1', { className: "text-4xl font-bold text-white" }, "₹", totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })),
+                  createElement('span', { className: `text-sm font-bold px-2 py-1 rounded-lg ${dayChange >= 0 ? 'bg-emerald-500/20 text-emerald-100' : 'bg-rose-500/20 text-rose-100'}` },
+                    dayChange >= 0 ? '+' : '', dayChange.toFixed(2), " Today"
+                  )
+                ),
+                createElement('div', { className: "mt-6 flex gap-3" },
+                  createElement('button', { onClick: () => setActiveTab('portfolio'), className: "bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium backdrop-blur-sm transition-all" }, "View Holdings"),
+                  createElement('button', { onClick: () => setIsAddModalOpen(true), className: "bg-white text-blue-600 px-4 py-2 rounded-lg text-sm font-medium shadow-lg hover:bg-blue-50 transition-all" }, "+ Add Stock")
+                )
+              ),
+              createElement('div', { className: "absolute -right-10 -bottom-20 w-64 h-64 bg-blue-500/30 rounded-full blur-3xl" })
+            )
+          ),
 
-          <div className="bg-gray-900/50 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center">
-            <h3 className="text-gray-400 font-medium mb-4 flex items-center gap-2">
-              <Activity size={16} /> Market Pulse
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300">NIFTY 50</span>
-                <span className="text-emerald-400 font-medium">+0.45%</span>
-              </div>
-              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 w-[65%] h-full"></div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300">SENSEX</span>
-                <span className="text-emerald-400 font-medium">+0.32%</span>
-              </div>
-              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-emerald-500 w-[58%] h-full"></div>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300">BANK NIFTY</span>
-                <span className="text-rose-400 font-medium">-0.12%</span>
-              </div>
-              <div className="w-full bg-gray-800 h-2 rounded-full overflow-hidden">
-                <div className="bg-rose-500 w-[45%] h-full"></div>
-              </div>
-            </div>
-          </div>
-        </div>
+          createElement('div', { className: "bg-gray-900/50 border border-gray-800 rounded-2xl p-6 flex flex-col justify-center" },
+            createElement('h3', { className: "text-gray-400 font-medium mb-4 flex items-center gap-2" },
+              createElement(Activity, { size: 16 }), " Market Pulse"
+            ),
+            createElement('div', { className: "space-y-4" },
+              createElement('div', { className: "flex justify-between items-center" },
+                createElement('span', { className: "text-gray-300" }, "NIFTY 50"),
+                createElement('span', { className: "text-emerald-400 font-medium" }, "+0.45%")
+              ),
+              createElement('div', { className: "w-full bg-gray-800 h-2 rounded-full overflow-hidden" }, createElement('div', { className: "bg-emerald-500 w-[65%] h-full" })),
+              createElement('div', { className: "flex justify-between items-center" },
+                createElement('span', { className: "text-gray-300" }, "SENSEX"),
+                createElement('span', { className: "text-emerald-400 font-medium" }, "+0.32%")
+              ),
+              createElement('div', { className: "w-full bg-gray-800 h-2 rounded-full overflow-hidden" }, createElement('div', { className: "bg-emerald-500 w-[58%] h-full" })),
+              createElement('div', { className: "flex justify-between items-center" },
+                createElement('span', { className: "text-gray-300" }, "BANK NIFTY"),
+                createElement('span', { className: "text-rose-400 font-medium" }, "-0.12%")
+              ),
+              createElement('div', { className: "w-full bg-gray-800 h-2 rounded-full overflow-hidden" }, createElement('div', { className: "bg-rose-500 w-[45%] h-full" }))
+            )
+          )
+        ),
 
-        {/* Movers Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <TrendingUp className="text-emerald-500" /> Top Gainers
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {topGainers.map(stock => (
-                <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }}>
-                  <div>
-                    <div className="font-bold text-white">{stock.symbol}</div>
-                    <div className="text-xs text-gray-500">{stock.name}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-white">₹{stock.price}</div>
-                    <div className="text-xs text-emerald-400">+{stock.change}%</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
+        // Movers Section
+        createElement('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-6" },
+          createElement(Card, null,
+            createElement('div', { className: "flex items-center justify-between mb-4" },
+              createElement('h3', { className: "text-lg font-semibold text-white flex items-center gap-2" },
+                createElement(TrendingUp, { className: "text-emerald-500" }), " Top Gainers"
+              )
+            ),
+            createElement('div', { className: "space-y-3" },
+              topGainers.map(stock => (
+                createElement('div', { 
+                  key: stock.symbol, 
+                  className: "flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer",
+                  onClick: () => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }
+                },
+                  createElement('div', null,
+                    createElement('div', { className: "font-bold text-white" }, stock.symbol),
+                    createElement('div', { className: "text-xs text-gray-500" }, stock.name)
+                  ),
+                  createElement('div', { className: "text-right" },
+                    createElement('div', { className: "text-white" }, "₹", stock.price),
+                    createElement('div', { className: "text-xs text-emerald-400" }, "+", stock.change, "%")
+                  )
+                )
+              ))
+            )
+          ),
 
-          <Card>
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <TrendingDown className="text-rose-500" /> Top Losers
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {topLosers.map(stock => (
-                <div key={stock.symbol} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer" onClick={() => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }}>
-                  <div>
-                    <div className="font-bold text-white">{stock.symbol}</div>
-                    <div className="text-xs text-gray-500">{stock.name}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-white">₹{stock.price}</div>
-                    <div className="text-xs text-rose-400">{stock.change}%</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
-      </div>
+          createElement(Card, null,
+            createElement('div', { className: "flex items-center justify-between mb-4" },
+              createElement('h3', { className: "text-lg font-semibold text-white flex items-center gap-2" },
+                createElement(TrendingDown, { className: "text-rose-500" }), " Top Losers"
+              )
+            ),
+            createElement('div', { className: "space-y-3" },
+              topLosers.map(stock => (
+                createElement('div', { 
+                  key: stock.symbol, 
+                  className: "flex items-center justify-between p-3 rounded-lg bg-gray-800/30 hover:bg-gray-800/50 transition-colors cursor-pointer",
+                  onClick: () => { setSelectedStock({...stock, chartData: generateChartData(stock.price), metrics: { pe: 20, eps: 50, divYield: '1%', volume: '1M' }, aiAnalysis: generateAIAnalysis(stock) }); setActiveTab('analyzer'); }
+                },
+                  createElement('div', null,
+                    createElement('div', { className: "font-bold text-white" }, stock.symbol),
+                    createElement('div', { className: "text-xs text-gray-500" }, stock.name)
+                  ),
+                  createElement('div', { className: "text-right" },
+                    createElement('div', { className: "text-white" }, "₹", stock.price),
+                    createElement('div', { className: "text-xs text-rose-400" }, stock.change, "%")
+                  )
+                )
+              ))
+            )
+          )
+        )
+      )
     );
   };
 
@@ -460,337 +457,323 @@ function App() {
     }, [calcGrowth, calcEPS]);
 
     if (!selectedStock) return (
-      <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-fade-in">
-        <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center">
-          <Search size={40} className="text-blue-500" />
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Search for a Stock</h2>
-          <p className="text-gray-400 max-w-md mx-auto">Enter a symbol (e.g., RELIANCE) or company name to get deep insights, AI analysis, and fair value estimates.</p>
-        </div>
-        <div className="w-full max-w-md">
-          <form onSubmit={handleSearch} className="relative">
-            <Search className="absolute left-4 top-3.5 text-gray-500" size={20} />
-            <input 
-              type="text" 
-              placeholder="Search symbol..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-gray-900 border border-gray-700 text-white pl-12 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-            />
-            <button type="submit" className="absolute right-2 top-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
-              {loading ? '...' : 'Analyze'}
-            </button>
-          </form>
-        </div>
-        <div className="flex gap-2 text-sm text-gray-500">
-          <span>Trending:</span>
-          <button onClick={() => { setSearchQuery("RELIANCE"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">RELIANCE</button>
-          <button onClick={() => { setSearchQuery("TCS"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">TCS</button>
-          <button onClick={() => { setSearchQuery("TATAMOTORS"); handleSearch({ preventDefault: () => {} }); }} className="hover:text-blue-400 transition-colors">TATAMOTORS</button>
-        </div>
-      </div>
+      createElement('div', { className: "flex flex-col items-center justify-center h-[60vh] text-center space-y-6 animate-fade-in" },
+        createElement('div', { className: "w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center" },
+          createElement(Search, { size: 40, className: "text-blue-500" })
+        ),
+        createElement('div', null,
+          createElement('h2', { className: "text-3xl font-bold text-white mb-2" }, "Search for a Stock"),
+          createElement('p', { className: "text-gray-400 max-w-md mx-auto" }, "Enter a symbol (e.g., RELIANCE) or company name to get deep insights, AI analysis, and fair value estimates.")
+        ),
+        createElement('div', { className: "w-full max-w-md" },
+          createElement('form', { onSubmit: handleSearch, className: "relative" },
+            createElement(Search, { className: "absolute left-4 top-3.5 text-gray-500", size: 20 }),
+            createElement('input', { 
+              type: "text", 
+              placeholder: "Search symbol...", 
+              value: searchQuery,
+              onChange: (e) => setSearchQuery(e.target.value),
+              className: "w-full bg-gray-900 border border-gray-700 text-white pl-12 pr-4 py-3 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
+            }),
+            createElement('button', { type: "submit", className: "absolute right-2 top-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors" },
+              loading ? '...' : 'Analyze'
+            )
+          )
+        ),
+        createElement('div', { className: "flex gap-2 text-sm text-gray-500" },
+          createElement('span', null, "Trending:"),
+          createElement('button', { onClick: () => { setSearchQuery("RELIANCE"); handleSearch({ preventDefault: () => {} }); }, className: "hover:text-blue-400 transition-colors" }, "RELIANCE"),
+          createElement('button', { onClick: () => { setSearchQuery("TCS"); handleSearch({ preventDefault: () => {} }); }, className: "hover:text-blue-400 transition-colors" }, "TCS"),
+          createElement('button', { onClick: () => { setSearchQuery("TATAMOTORS"); handleSearch({ preventDefault: () => {} }); }, className: "hover:text-blue-400 transition-colors" }, "TATAMOTORS")
+        )
+      )
     );
 
     return (
-      <div className="space-y-6 animate-fade-in pb-20">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="text-3xl font-bold text-white">{selectedStock.symbol}</h1>
-              <Badge type={selectedStock.change > 0 ? 'success' : 'danger'}>
-                {selectedStock.change > 0 ? '+' : ''}{selectedStock.change}%
-              </Badge>
-            </div>
-            <h2 className="text-gray-400 text-lg">{selectedStock.name} | {selectedStock.sector}</h2>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-3xl font-bold text-white">₹{selectedStock.price.toLocaleString()}</div>
-              <div className="text-sm text-gray-500">Current Price</div>
-            </div>
-            <button 
-              onClick={() => addToPortfolio(selectedStock)}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2"
-            >
-              <Plus size={20} /> <span className="hidden md:inline">Add to Portfolio</span>
-            </button>
-          </div>
-        </div>
+      createElement('div', { className: "space-y-6 animate-fade-in pb-20" },
+        // Header
+        createElement('div', { className: "flex flex-col md:flex-row justify-between items-start md:items-center gap-4" },
+          createElement('div', null,
+            createElement('div', { className: "flex items-center gap-3 mb-1" },
+              createElement('h1', { className: "text-3xl font-bold text-white" }, selectedStock.symbol),
+              createElement(Badge, { type: selectedStock.change > 0 ? 'success' : 'danger' }, selectedStock.change > 0 ? '+' : '', selectedStock.change, "%")
+            ),
+            createElement('h2', { className: "text-gray-400 text-lg" }, selectedStock.name, " | ", selectedStock.sector)
+          ),
+          createElement('div', { className: "flex items-center gap-4" },
+            createElement('div', { className: "text-right" },
+              createElement('div', { className: "text-3xl font-bold text-white" }, "₹", selectedStock.price.toLocaleString()),
+              createElement('div', { className: "text-sm text-gray-500" }, "Current Price")
+            ),
+            createElement('button', { 
+              onClick: () => addToPortfolio(selectedStock),
+              className: "bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-xl shadow-lg shadow-blue-600/20 transition-all active:scale-95 flex items-center gap-2"
+            },
+              createElement(Plus, { size: 20 }), " ", createElement('span', { className: "hidden md:inline" }, "Add to Portfolio")
+            )
+          )
+        ),
 
-        {/* Chart (Recharts Placeholder) */}
-        <Card className="h-[350px] p-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={selectedStock.chartData}>
-              <defs>
-                <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} stopOpacity={0}/>
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
-              <XAxis dataKey="day" hide />
-              <YAxis domain={['auto', 'auto']} orientation="right" tick={{fill: '#9ca3af'}} axisLine={false} tickLine={false} />
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
-                itemStyle={{ color: '#fff' }}
-              />
-              <Area 
-                type="monotone" 
-                dataKey="price" 
-                stroke={selectedStock.change > 0 ? "#10b981" : "#f43f5e"} 
-                strokeWidth={3}
-                fillOpacity={1} 
-                fill="url(#colorPrice)" 
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </Card>
+        // Chart (Recharts Placeholder)
+        createElement(Card, { className: "h-[350px] p-4" },
+          createElement(ResponsiveContainer, { width: "100%", height: "100%" },
+            createElement(AreaChart, { data: selectedStock.chartData },
+              createElement('defs', null,
+                createElement('linearGradient', { id: "colorPrice", x1: "0", y1: "0", x2: "0", y2: "1" },
+                  createElement('stop', { offset: "5%", stopColor: selectedStock.change > 0 ? "#10b981" : "#f43f5e", stopOpacity: 0.3}),
+                  createElement('stop', { offset: "95%", stopColor: selectedStock.change > 0 ? "#10b981" : "#f43f5e", stopOpacity: 0})
+                )
+              ),
+              createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: "#374151", vertical: false }),
+              createElement(XAxis, { dataKey: "day", hide: true }),
+              createElement(YAxis, { domain: ['auto', 'auto'], orientation: "right", tick: {fill: '#9ca3af'}, axisLine: false, tickLine: false }),
+              createElement(Tooltip, { 
+                contentStyle: { backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' },
+                itemStyle: { color: '#fff' }
+              }),
+              createElement(Area, { 
+                type: "monotone", 
+                dataKey: "price", 
+                stroke: selectedStock.change > 0 ? "#10b981" : "#f43f5e", 
+                strokeWidth: 3,
+                fillOpacity: 1, 
+                fill: "url(#colorPrice)" 
+              })
+            )
+          )
+        ),
 
-        {/* Metrics Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <MetricBox label="P/E Ratio" value={selectedStock.metrics.pe} icon={Calculator} />
-          <MetricBox label="EPS (TTM)" value={`₹${selectedStock.metrics.eps}`} icon={DollarSign} />
-          <MetricBox label="Div Yield" value={selectedStock.metrics.divYield} icon={PieChart} />
-          <MetricBox label="Volume" value={selectedStock.metrics.volume} icon={Activity} />
-        </div>
+        // Metrics Grid
+        createElement('div', { className: "grid grid-cols-2 md:grid-cols-4 gap-4" },
+          createElement(MetricBox, { label: "P/E Ratio", value: selectedStock.metrics.pe, icon: Calculator }),
+          createElement(MetricBox, { label: "EPS (TTM)", value: `₹${selectedStock.metrics.eps}`, icon: DollarSign }),
+          createElement(MetricBox, { label: "Div Yield", value: selectedStock.metrics.divYield, icon: PieChart }),
+          createElement(MetricBox, { label: "Volume", value: selectedStock.metrics.volume, icon: Activity })
+        ),
 
-        {/* Analysis & Calculator */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* AI Analysis */}
-          <div className="lg:col-span-2">
-            <Card className="h-full">
-              <div className="flex items-center gap-2 mb-4">
-                <BrainCircuit className="text-purple-400" />
-                <h3 className="text-xl font-bold text-white">AI Analysis</h3>
-              </div>
-              <div className="bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500">
-                <p className="text-gray-300 leading-relaxed">
-                  {selectedStock.aiAnalysis}
-                </p>
-              </div>
-              <div className="mt-6">
-                <h4 className="text-sm font-medium text-gray-400 mb-3">ANALYST RATINGS</h4>
-                <div className="flex items-center gap-1 h-4 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 w-[60%]" title="Buy 60%"></div>
-                  <div className="bg-yellow-500 w-[30%]" title="Hold 30%"></div>
-                  <div className="bg-rose-500 w-[10%]" title="Sell 10%"></div>
-                </div>
-                <div className="flex justify-between text-xs text-gray-500 mt-2">
-                  <span>Strong Buy</span>
-                  <span>Hold</span>
-                  <span>Sell</span>
-                </div>
-              </div>
-            </Card>
-          </div>
+        // Analysis & Calculator
+        createElement('div', { className: "grid grid-cols-1 lg:grid-cols-3 gap-6" },
+          // AI Analysis
+          createElement('div', { className: "lg:col-span-2" },
+            createElement(Card, { className: "h-full" },
+              createElement('div', { className: "flex items-center gap-2 mb-4" },
+                createElement(BrainCircuit, { className: "text-purple-400" }),
+                createElement('h3', { className: "text-xl font-bold text-white" }, "AI Analysis")
+              ),
+              createElement('div', { className: "bg-gray-800/50 p-4 rounded-lg border-l-4 border-purple-500" },
+                createElement('p', { className: "text-gray-300 leading-relaxed" }, selectedStock.aiAnalysis)
+              ),
+              createElement('div', { className: "mt-6" },
+                createElement('h4', { className: "text-sm font-medium text-gray-400 mb-3" }, "ANALYST RATINGS"),
+                createElement('div', { className: "flex items-center gap-1 h-4 rounded-full overflow-hidden" },
+                  createElement('div', { className: "bg-emerald-500 w-[60%]", title: "Buy 60%" }),
+                  createElement('div', { className: "bg-yellow-500 w-[30%]", title: "Hold 30%" }),
+                  createElement('div', { className: "bg-rose-500 w-[10%]", title: "Sell 10%" })
+                ),
+                createElement('div', { className: "flex justify-between text-xs text-gray-500 mt-2" },
+                  createElement('span', null, "Strong Buy"),
+                  createElement('span', null, "Hold"),
+                  createElement('span', null, "Sell")
+                )
+              )
+            )
+          ),
 
-          {/* Fair Value Calculator */}
-          <div>
-            <Card className="h-full bg-gradient-to-b from-gray-900 to-gray-900">
-              <div className="flex items-center gap-2 mb-4">
-                <Calculator className="text-blue-400" />
-                <h3 className="text-xl font-bold text-white">Fair Value</h3>
-              </div>
+          // Fair Value Calculator
+          createElement('div', null,
+            createElement(Card, { className: "h-full bg-gradient-to-b from-gray-900 to-gray-900" },
+              createElement('div', { className: "flex items-center gap-2 mb-4" },
+                createElement(Calculator, { className: "text-blue-400" }),
+                createElement('h3', { className: "text-xl font-bold text-white" }, "Fair Value")
+              ),
               
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-gray-400 uppercase font-bold">Expected Growth (%)</label>
-                  <input 
-                    type="number" 
-                    value={calcGrowth}
-                    onChange={(e) => setCalcGrowth(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs text-gray-400 uppercase font-bold">EPS (₹)</label>
-                  <input 
-                    type="number" 
-                    value={calcEPS}
-                    onChange={(e) => setCalcEPS(e.target.value)}
-                    className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
-                  />
-                </div>
+              createElement('div', { className: "space-y-4" },
+                createElement('div', null,
+                  createElement('label', { className: "text-xs text-gray-400 uppercase font-bold" }, "Expected Growth (%)"),
+                  createElement('input', { 
+                    type: "number", 
+                    value: calcGrowth,
+                    onChange: (e) => setCalcGrowth(e.target.value),
+                    className: "w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
+                  })
+                ),
+                createElement('div', null,
+                  createElement('label', { className: "text-xs text-gray-400 uppercase font-bold" }, "EPS (₹)"),
+                  createElement('input', { 
+                    type: "number", 
+                    value: calcEPS,
+                    onChange: (e) => setCalcEPS(e.target.value),
+                    className: "w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded-lg mt-1 focus:border-blue-500 outline-none"
+                  })
+                ),
                 
-                <div className="mt-6 pt-6 border-t border-gray-800">
-                   <div className="text-center">
-                      <div className="text-sm text-gray-500 mb-1">Intrinsic Value</div>
-                      <div className="text-3xl font-bold text-emerald-400">₹{fairValue.toLocaleString(undefined, {maximumFractionDigits: 2})}</div>
-                      <div className="text-xs mt-2 text-gray-400">
-                        Margin of Safety: <span className={`${fairValue > selectedStock.price ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {((fairValue - selectedStock.price) / selectedStock.price * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                   </div>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
-      </div>
+                createElement('div', { className: "mt-6 pt-6 border-t border-gray-800" },
+                   createElement('div', { className: "text-center" },
+                      createElement('div', { className: "text-sm text-gray-500 mb-1" }, "Intrinsic Value"),
+                      createElement('div', { className: "text-3xl font-bold text-emerald-400" }, "₹", fairValue.toLocaleString(undefined, {maximumFractionDigits: 2})),
+                      createElement('div', { className: "text-xs mt-2 text-gray-400" },
+                        "Margin of Safety: ", createElement('span', { className: `${fairValue > selectedStock.price ? 'text-emerald-400' : 'text-rose-400'}` }, ((fairValue - selectedStock.price) / selectedStock.price * 100).toFixed(1), "%")
+                      )
+                   )
+                )
+              )
+            )
+          )
+        )
+      )
     );
   };
 
   const PortfolioView = () => (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-end">
-         <div>
-           <h1 className="text-3xl font-bold text-white">My Portfolio</h1>
-           <p className="text-gray-400 mt-1">Manage your holdings and track performance.</p>
-         </div>
-         <button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors shadow-lg shadow-blue-600/20">
-           <Plus size={18} /> Add Stock
-         </button>
-      </div>
+    createElement('div', { className: "space-y-6 animate-fade-in" },
+      createElement('div', { className: "flex justify-between items-end" },
+         createElement('div', null,
+           createElement('h1', { className: "text-3xl font-bold text-white" }, "My Portfolio"),
+           createElement('p', { className: "text-gray-400 mt-1" }, "Manage your holdings and track performance.")
+         ),
+         createElement('button', { onClick: () => setIsAddModalOpen(true), className: "bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl flex items-center gap-2 font-medium transition-colors shadow-lg shadow-blue-600/20" },
+           createElement(Plus, { size: 18 }), " Add Stock"
+         )
+      ),
 
-      {portfolio.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 bg-gray-900/50 border border-gray-800 border-dashed rounded-2xl">
-          <Briefcase size={48} className="text-gray-600 mb-4" />
-          <h3 className="text-xl font-medium text-white">Your portfolio is empty</h3>
-          <p className="text-gray-500 mb-6">Start adding stocks to track your wealth.</p>
-          <button onClick={() => setIsAddModalOpen(true)} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium">
-            <Plus size={16} /> Add your first stock
-          </button>
-        </div>
+      portfolio.length === 0 ? (
+        createElement('div', { className: "flex flex-col items-center justify-center py-20 bg-gray-900/50 border border-gray-800 border-dashed rounded-2xl" },
+          createElement(Briefcase, { size: 48, className: "text-gray-600 mb-4" }),
+          createElement('h3', { className: "text-xl font-medium text-white" }, "Your portfolio is empty"),
+          createElement('p', { className: "text-gray-500 mb-6" }, "Start adding stocks to track your wealth."),
+          createElement('button', { onClick: () => setIsAddModalOpen(true), className: "text-blue-400 hover:text-blue-300 flex items-center gap-1 font-medium" },
+            createElement(Plus, { size: 16 }), " Add your first stock"
+          )
+        )
       ) : (
-        <div className="grid grid-cols-1 gap-4">
-          {portfolio.map((stock) => (
-            <div key={stock.id} className="bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between hover:border-gray-700 transition-all group">
-              <div className="flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0">
-                <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 font-bold text-lg">
-                  {stock.symbol[0]}
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-lg">{stock.symbol}</h3>
-                  <div className="text-sm text-gray-500">{stock.name}</div>
-                </div>
-              </div>
+        createElement('div', { className: "grid grid-cols-1 gap-4" },
+          portfolio.map((stock) => (
+            createElement('div', { key: stock.id, className: "bg-gray-900/60 backdrop-blur-md border border-gray-800 rounded-xl p-5 flex flex-col md:flex-row items-center justify-between hover:border-gray-700 transition-all group" },
+              createElement('div', { className: "flex items-center gap-4 w-full md:w-auto mb-4 md:mb-0" },
+                createElement('div', { className: "w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 font-bold text-lg" }, stock.symbol[0]),
+                createElement('div', null,
+                  createElement('h3', { className: "font-bold text-white text-lg" }, stock.symbol),
+                  createElement('div', { className: "text-sm text-gray-500" }, stock.name)
+                )
+              ),
 
-              <div className="grid grid-cols-3 gap-8 w-full md:w-auto text-center md:text-left">
-                <div>
-                  <div className="text-xs text-gray-500 uppercase font-bold">Qty</div>
-                  <div className="text-white font-medium">{stock.quantity}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase font-bold">Avg Price</div>
-                  <div className="text-white font-medium">₹{stock.avgPrice}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500 uppercase font-bold">Value</div>
-                  <div className="text-emerald-400 font-medium">₹{stock.currentPrice * stock.quantity}</div>
-                </div>
-              </div>
+              createElement('div', { className: "grid grid-cols-3 gap-8 w-full md:w-auto text-center md:text-left" },
+                createElement('div', null,
+                  createElement('div', { className: "text-xs text-gray-500 uppercase font-bold" }, "Qty"),
+                  createElement('div', { className: "text-white font-medium" }, stock.quantity)
+                ),
+                createElement('div', null,
+                  createElement('div', { className: "text-xs text-gray-500 uppercase font-bold" }, "Avg Price"),
+                  createElement('div', { className: "text-white font-medium" }, "₹", stock.avgPrice)
+                ),
+                createElement('div', null,
+                  createElement('div', { className: "text-xs text-gray-500 uppercase font-bold" }, "Value"),
+                  createElement('div', { className: "text-emerald-400 font-medium" }, "₹", stock.currentPrice * stock.quantity)
+                )
+              ),
 
-              <div className="flex gap-2 ml-0 md:ml-6 mt-4 md:mt-0 w-full md:w-auto">
-                <button className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors">
-                   <Activity size={18} />
-                </button>
-                <button 
-                  onClick={() => removeFromPortfolio(stock.id, stock.symbol)}
-                  className="p-2 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                >
-                   <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+              createElement('div', { className: "flex gap-2 ml-0 md:ml-6 mt-4 md:mt-0 w-full md:w-auto" },
+                createElement('button', { className: "p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors" }, createElement(Activity, { size: 18 })),
+                createElement('button', { 
+                  onClick: () => removeFromPortfolio(stock.id, stock.symbol),
+                  className: "p-2 text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                }, createElement(Trash2, { size: 18 }))
+              )
+            )
+          ))
+        )
+      )
+    )
   );
 
   // --- RENDER ---
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans selection:bg-blue-500/30">
+    createElement('div', { className: "min-h-screen bg-black text-white font-sans selection:bg-blue-500/30" },
       
-      {/* Components Overlays (Modal and Toast) */}
-      <AddStockModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onAdd={addToPortfolio} />
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      // Components Overlays (Modal and Toast)
+      createElement(AddStockModal, { isOpen: isAddModalOpen, onClose: () => setIsAddModalOpen(false), onAdd: addToPortfolio }),
+      toast && createElement(Toast, { message: toast.message, type: toast.type, onClose: () => setToast(null) }),
 
-      {/* Mobile Header */}
-      <div className="md:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white">D</div>
-          <span className="font-bold text-lg tracking-tight">DevXWorld</span>
-        </div>
-        <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="text-gray-400 hover:text-white">
-          {isMobileMenuOpen ? <X /> : <Menu />}
-        </button>
-      </div>
+      // Mobile Header
+      createElement('div', { className: "md:hidden flex items-center justify-between p-4 border-b border-gray-800 bg-gray-900/80 backdrop-blur-md sticky top-0 z-40" },
+        createElement('div', { className: "flex items-center gap-2" },
+          createElement('div', { className: "w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white" }, "D"),
+          createElement('span', { className: "font-bold text-lg tracking-tight" }, "DevXWorld")
+        ),
+        createElement('button', { onClick: () => setIsMobileMenuOpen(!isMobileMenuOpen), className: "text-gray-400 hover:text-white" },
+          isMobileMenuOpen ? createElement(X, null) : createElement(Menu, null)
+        )
+      ),
 
-      {/* Mobile Menu Overlay */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 z-30 bg-gray-900/95 backdrop-blur-lg pt-20 px-6 md:hidden">
-          <nav className="flex flex-col gap-2">
-            <button onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
-              <LayoutDashboard size={20} /> Dashboard
-            </button>
-            <button onClick={() => { setActiveTab('analyzer'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'analyzer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
-              <Search size={20} /> Stock Analyzer
-            </button>
-            <button onClick={() => { setActiveTab('portfolio'); setIsMobileMenuOpen(false); }} className={`flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'portfolio' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}`}>
-              <PieChart size={20} /> Portfolio
-            </button>
-          </nav>
-        </div>
-      )}
+      // Mobile Menu Overlay
+      isMobileMenuOpen && (
+        createElement('div', { className: "fixed inset-0 z-30 bg-gray-900/95 backdrop-blur-lg pt-20 px-6 md:hidden" },
+          createElement('nav', { className: "flex flex-col gap-2" },
+            createElement('button', { onClick: () => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }, className: `flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'dashboard' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}` },
+              createElement(LayoutDashboard, { size: 20 }), " Dashboard"
+            ),
+            createElement('button', { onClick: () => { setActiveTab('analyzer'); setIsMobileMenuOpen(false); }, className: `flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'analyzer' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}` },
+              createElement(Search, { size: 20 }), " Stock Analyzer"
+            ),
+            createElement('button', { onClick: () => { setActiveTab('portfolio'); setIsMobileMenuOpen(false); }, className: `flex items-center gap-3 px-4 py-3 rounded-xl text-lg font-medium ${activeTab === 'portfolio' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:bg-gray-800'}` },
+              createElement(PieChart, { size: 20 }), " Portfolio"
+            )
+          )
+        )
+      ),
 
-      <div className="flex h-screen overflow-hidden">
-        {/* Sidebar Desktop */}
-        <aside className="hidden md:flex w-64 flex-col border-r border-gray-800 bg-gray-950/50 backdrop-blur-sm">
-          <div className="p-6 flex items-center gap-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20">D</div>
-            <span className="font-bold text-xl tracking-tight">DevXWorld</span>
-          </div>
+      createElement('div', { className: "flex h-screen overflow-hidden" },
+        // Sidebar Desktop
+        createElement('aside', { className: "hidden md:flex w-64 flex-col border-r border-gray-800 bg-gray-950/50 backdrop-blur-sm" },
+          createElement('div', { className: "p-6 flex items-center gap-3" },
+            createElement('div', { className: "w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20" }, "D"),
+            createElement('span', { className: "font-bold text-xl tracking-tight" }, "DevXWorld")
+          ),
           
-          <nav className="flex-1 px-4 py-4 space-y-2">
-            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
-              <LayoutDashboard size={18} /> Dashboard
-            </button>
-            <button onClick={() => setActiveTab('analyzer')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
-              <Search size={18} /> Analyzer
-            </button>
-            <button onClick={() => setActiveTab('portfolio')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'portfolio' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}`}>
-              <PieChart size={18} /> Portfolio
-            </button>
-          </nav>
+          createElement('nav', { className: "flex-1 px-4 py-4 space-y-2" },
+            createElement('button', { onClick: () => setActiveTab('dashboard'), className: `w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}` },
+              createElement(LayoutDashboard, { size: 18 }), " Dashboard"
+            ),
+            createElement('button', { onClick: () => setActiveTab('analyzer'), className: `w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'analyzer' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}` },
+              createElement(Search, { size: 18 }), " Analyzer"
+            ),
+            createElement('button', { onClick: () => setActiveTab('portfolio'), className: `w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'portfolio' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-gray-400 hover:bg-gray-900 hover:text-white'}` },
+              createElement(PieChart, { size: 18 }), " Portfolio"
+            )
+          ),
 
-          <div className="p-6">
-             <div className="bg-gray-900 rounded-xl p-4 border border-gray-800">
-               <div className="flex items-center gap-2 mb-2">
-                 <Zap size={16} className="text-yellow-400" />
-                 <span className="text-xs font-bold text-gray-300 uppercase">Pro Tip</span>
-               </div>
-               <p className="text-xs text-gray-500 leading-relaxed">
-                 Use the Fair Value calculator in the Analyzer tab to find undervalued stocks before buying.
-               </p>
-             </div>
-          </div>
-        </aside>
+          createElement('div', { className: "p-6" },
+             createElement('div', { className: "bg-gray-900 rounded-xl p-4 border border-gray-800" },
+               createElement('div', { className: "flex items-center gap-2 mb-2" },
+                 createElement(Zap, { size: 16, className: "text-yellow-400" }),
+                 createElement('span', { className: "text-xs font-bold text-gray-300 uppercase" }, "Pro Tip")
+               ),
+               createElement('p', { className: "text-xs text-gray-500 leading-relaxed" }, "Use the Fair Value calculator in the Analyzer tab to find undervalued stocks before buying.")
+             )
+          )
+        ),
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-y-auto relative">
-          {/* Header Background Glow */}
-          <div className="absolute top-0 left-0 w-full h-64 bg-blue-900/10 blur-3xl -z-10"></div>
+        // Main Content
+        createElement('main', { className: "flex-1 overflow-y-auto relative" },
+          // Header Background Glow
+          createElement('div', { className: "absolute top-0 left-0 w-full h-64 bg-blue-900/10 blur-3xl -z-10" }),
 
-          <div className="p-6 md:p-10 max-w-7xl mx-auto">
-            {activeTab === 'dashboard' && <DashboardView />}
-            {activeTab === 'analyzer' && <AnalyzerView />}
-            {activeTab === 'portfolio' && <PortfolioView />}
-          </div>
-        </main>
-      </div>
-    </div>
-  );
-}
+          createElement('div', { className: "p-6 md:p-10 max-w-7xl mx-auto" },
+            activeTab === 'dashboard' && createElement(DashboardView, null),
+            activeTab === 'analyzer' && createElement(AnalyzerView, null),
+            activeTab === 'portfolio' && createElement(PortfolioView, null)
+          )
+        )
+      )
+    );
+  }
 
 // --- Render the App ---
 document.addEventListener('DOMContentLoaded', () => {
     const container = document.getElementById('root');
     if (container) {
-        createRoot(container).render(<App />);
+        // Use createRoot for React 18 compatibility
+        createRoot(container).render(createElement(App, null));
     }
 });
