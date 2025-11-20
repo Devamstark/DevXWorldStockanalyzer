@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevXWorld Stock Analyzer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">DevXWorld</a>
+            <div class="nav-links">
+                <button class="nav-btn active" data-view="search">Search</button>
+                <button class="nav-btn" data-view="portfolio">Portfolio</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        
+        <!-- Search View -->
+        <div id="searchView">
+            <section class="hero">
+                <h1>Smart Stock Search</h1>
+                <p>Real-time analysis and insights for Indian stocks.</p>
+                
+                <div class="search-wrapper">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search stocks (e.g., RELIANCE, TCS)..." autocomplete="off">
+                    <ul id="suggestions" class="suggestions hidden"></ul>
+                </div>
+            </section>
+
+            <!-- Loading State -->
+            <div id="loading" class="loader hidden"></div>
+
+            <!-- Stock Details -->
+            <div id="stockDetails" class="hidden">
+                <div class="card">
+                    <div class="stock-header">
+                        <div class="stock-title">
+                            <h2 id="stockName">Stock Name</h2>
+                            <div class="stock-meta" id="stockSymbol">SYMBOL</div>
+                        </div>
+                        <div class="stock-price-block">
+                            <span class="current-price" id="stockPrice">₹0.00</span>
+                            <span class="price-change" id="stockChange">+0.00%</span>
+                        </div>
+                    </div>
+
+                    <div class="grid-2">
+                        <div>
+                            <h3>Key Metrics</h3>
+                            <div class="metric-item">
+                                <span class="metric-label">P/E Ratio</span>
+                                <span class="metric-value" id="peRatio">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">EPS</span>
+                                <span class="metric-value" id="eps">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Dividend Yield</span>
+                                <span class="metric-value" id="divYield">-</span>
+                            </div>
+                            <div class="metric-item">
+                                <span class="metric-label">Volume</span>
+                                <span class="metric-value" id="stockVolume">-</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <h3>Recommendation</h3>
+                            <div class="card" style="background: rgba(0,0,0,0.2);">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <span id="recommendation" style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold;">HOLD</span>
+                                    <span style="color: var(--text-secondary);">Target: <span id="targetPrice" style="color: white;">-</span></span>
+                                </div>
+                                <p id="reasonText" style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;"></p>
+                            </div>
+                            <button id="addToPortfolioBtn" class="btn mt-4" style="width: 100%;">Add to Portfolio</button>
+                        </div>
+                    </div>
+
+                    <!-- Analyst Chart -->
+                    <div style="height: 200px; margin-top: 2rem;">
+                        <canvas id="analystChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Portfolio View -->
+        <div id="portfolioView" class="hidden">
+            <section class="hero" style="padding: 2rem 0;">
+                <h1>My Portfolio</h1>
+                <p>Track your favorite stocks in real-time.</p>
+            </section>
+            
+            <div id="portfolioLoading" class="loader hidden"></div>
+            <div id="portfolioGrid" class="portfolio-grid">
+                <!-- Portfolio items will be injected here -->
+            </div>
+            <div id="emptyPortfolio" class="text-center hidden">
+                <p style="color: var(--text-secondary);">Your portfolio is empty. Search for stocks to add them.</p>
+                <button class="btn" onclick="document.querySelector('[data-view=search]').click()">Go to Search</button>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
