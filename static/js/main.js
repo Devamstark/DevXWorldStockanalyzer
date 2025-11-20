@@ -17,32 +17,69 @@ const portfolioGrid = document.getElementById('portfolioGrid');
 const portfolioLoading = document.getElementById('portfolioLoading');
 const emptyPortfolio = document.getElementById('emptyPortfolio');
 const addToPortfolioBtn = document.getElementById('addToPortfolioBtn');
+const gainersList = document.getElementById('gainersList');
+const losersList = document.getElementById('losersList');
 
 // Navigation
 navBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-        // Update active state
         navBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        // Switch view
         const viewName = btn.dataset.view;
         Object.values(views).forEach(el => el.classList.add('hidden'));
         views[viewName].classList.remove('hidden');
 
-        // Load data if needed
         if (viewName === 'portfolio') {
             loadPortfolio();
         }
     });
 });
 
+// Load Top Movers
+window.addEventListener('load', () => {
+    fetchMovers('/api/gainers', gainersList);
+    fetchMovers('/api/losers', losersList);
+});
+
+async function fetchMovers(endpoint, element) {
+    try {
+        const res = await fetch(endpoint);
+        const data = await res.json();
+
+        element.innerHTML = '';
+        if (!data || data.length === 0) {
+            element.innerHTML = '<li class="mover-item text-muted">No data</li>';
+            return;
+        }
+
+        data.forEach(stock => {
+            const li = document.createElement('li');
+            li.className = 'mover-item';
+            li.innerHTML = `
+                <span class="mover-symbol">${stock.symbol}</span>
+                <span class="mover-price">₹${stock.price}</span>
+                <span class="mover-change ${stock.change > 0 ? 'text-success' : 'text-danger'}">
+                    ${stock.change > 0 ? '+' : ''}${stock.change}%
+                </span>
+            `;
+            li.onclick = () => {
+                searchInput.value = stock.symbol;
+                fetchStockDetails(stock.symbol);
+            };
+            element.appendChild(li);
+        });
+    } catch (err) {
+        element.innerHTML = '<li class="mover-item text-danger">Failed to load</li>';
+    }
+}
+
 // Search Logic
 let debounceTimer;
 searchInput.addEventListener('input', (e) => {
     clearTimeout(debounceTimer);
     const query = e.target.value.trim();
-    
+
     if (query.length < 2) {
         suggestionsBox.classList.add('hidden');
         return;
@@ -55,7 +92,7 @@ async function fetchSuggestions(query) {
     try {
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(query)}`);
         const data = await res.json();
-        
+
         suggestionsBox.innerHTML = '';
         if (data.length > 0) {
             data.forEach(item => {
@@ -85,11 +122,11 @@ async function fetchSuggestions(query) {
 async function fetchStockDetails(symbol) {
     loading.classList.remove('hidden');
     stockDetails.classList.add('hidden');
-    
+
     try {
         const res = await fetch(`/api/quote/${symbol}`);
         const data = await res.json();
-        
+
         if (data.error) throw new Error(data.error);
 
         currentSymbol = data.symbol;
@@ -99,7 +136,7 @@ async function fetchStockDetails(symbol) {
         document.getElementById('stockName').textContent = data.name;
         document.getElementById('stockSymbol').textContent = data.symbol;
         document.getElementById('stockPrice').textContent = `₹${data.price.toLocaleString('en-IN')}`;
-        
+
         const changeEl = document.getElementById('stockChange');
         changeEl.textContent = data.change;
         changeEl.className = 'price-change ' + (data.change.includes('+') ? 'change-up' : 'change-down');
@@ -113,10 +150,10 @@ async function fetchStockDetails(symbol) {
 
         const recEl = document.getElementById('recommendation');
         recEl.textContent = data.recommendation;
-        recEl.className = ''; // Reset
-        recEl.style.backgroundColor = 
+        recEl.className = '';
+        recEl.style.backgroundColor =
             data.recommendation === 'BUY' ? 'var(--success)' :
-            data.recommendation === 'SELL' ? 'var(--danger)' : 'var(--warning)';
+                data.recommendation === 'SELL' ? 'var(--danger)' : 'var(--warning)';
         recEl.style.color = 'white';
 
         // Chart
@@ -162,7 +199,7 @@ function renderChart(ratings) {
 // Portfolio Logic
 addToPortfolioBtn.addEventListener('click', async () => {
     if (!currentSymbol) return;
-    
+
     try {
         const res = await fetch('/api/portfolio', {
             method: 'POST',
@@ -170,7 +207,7 @@ addToPortfolioBtn.addEventListener('click', async () => {
             body: JSON.stringify({ symbol: currentSymbol, name: currentStockName })
         });
         const data = await res.json();
-        
+
         if (res.ok) {
             alert('Added to portfolio!');
         } else {
@@ -196,7 +233,7 @@ async function loadPortfolio() {
             data.forEach(stock => {
                 const card = document.createElement('div');
                 card.className = 'card portfolio-item';
-                
+
                 const isUp = stock.change.toString().includes('+') || stock.change > 0;
                 const changeClass = isUp ? 'change-up' : 'change-down';
                 const changeSign = stock.change > 0 ? '+' : '';

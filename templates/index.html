@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,6 +9,7 @@
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
 <body>
 
     <!-- Navigation -->
@@ -23,16 +25,29 @@
 
     <!-- Main Content -->
     <main class="container">
-        
+
         <!-- Search View -->
         <div id="searchView">
             <section class="hero">
                 <h1>Smart Stock Search</h1>
                 <p>Real-time analysis and insights for Indian stocks.</p>
-                
+
                 <div class="search-wrapper">
-                    <input type="text" id="searchInput" class="search-input" placeholder="Search stocks (e.g., RELIANCE, TCS)..." autocomplete="off">
+                    <input type="text" id="searchInput" class="search-input"
+                        placeholder="Search stocks (e.g., RELIANCE, TCS)..." autocomplete="off">
                     <ul id="suggestions" class="suggestions hidden"></ul>
+                </div>
+
+                <!-- Top Movers -->
+                <div class="top-movers-container">
+                    <div class="movers-column">
+                        <h3 class="movers-title text-success">Top Gainers</h3>
+                        <ul id="gainersList" class="movers-list"></ul>
+                    </div>
+                    <div class="movers-column">
+                        <h3 class="movers-title text-danger">Top Losers</h3>
+                        <ul id="losersList" class="movers-list"></ul>
+                    </div>
                 </div>
             </section>
 
@@ -73,17 +88,22 @@
                                 <span class="metric-value" id="stockVolume">-</span>
                             </div>
                         </div>
-                        
+
                         <div>
                             <h3>Recommendation</h3>
                             <div class="card" style="background: rgba(0,0,0,0.2);">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                    <span id="recommendation" style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold;">HOLD</span>
-                                    <span style="color: var(--text-secondary);">Target: <span id="targetPrice" style="color: white;">-</span></span>
+                                <div
+                                    style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <span id="recommendation"
+                                        style="padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: bold;">HOLD</span>
+                                    <span style="color: var(--text-secondary);">Target: <span id="targetPrice"
+                                            style="color: white;">-</span></span>
                                 </div>
-                                <p id="reasonText" style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;"></p>
+                                <p id="reasonText" style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                </p>
                             </div>
-                            <button id="addToPortfolioBtn" class="btn mt-4" style="width: 100%;">Add to Portfolio</button>
+                            <button id="addToPortfolioBtn" class="btn mt-4" style="width: 100%;">Add to
+                                Portfolio</button>
                         </div>
                     </div>
 
@@ -101,7 +121,7 @@
                 <h1>My Portfolio</h1>
                 <p>Track your favorite stocks in real-time.</p>
             </section>
-            
+
             <div id="portfolioLoading" class="loader hidden"></div>
             <div id="portfolioGrid" class="portfolio-grid">
                 <!-- Portfolio items will be injected here -->
@@ -116,4 +136,5 @@
 
     <script src="/static/js/main.js"></script>
 </body>
+
 </html>
