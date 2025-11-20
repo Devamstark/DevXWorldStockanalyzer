@@ -125,6 +125,13 @@ async function fetchStockDetails(symbol) {
 
     try {
         const res = await fetch(`/api/quote/${symbol}`);
+
+        if (!res.ok) {
+            const text = await res.text();
+            console.error("API Error Response:", text);
+            throw new Error(`Server error: ${res.status}`);
+        }
+
         const data = await res.json();
 
         if (data.error) throw new Error(data.error);
@@ -161,7 +168,8 @@ async function fetchStockDetails(symbol) {
 
         stockDetails.classList.remove('hidden');
     } catch (err) {
-        alert('Error fetching stock details: ' + err.message);
+        console.error("Error fetching stock details:", err);
+        alert(`Failed to load stock data: ${err.message}. Please try again.`);
     } finally {
         loading.classList.add('hidden');
     }
