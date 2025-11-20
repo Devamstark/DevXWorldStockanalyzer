@@ -33,11 +33,11 @@ try {
         signInAnonymously: async () => ({ user: { uid: 'mock-user-id' } })
     };
     db = { 
-        collection: () => ({ 
-            doc: () => ({ 
-                collection: () => ({ 
+        collection: (path) => ({ 
+            doc: (id) => ({ 
+                collection: (subpath) => ({ 
                     onSnapshot: (cb) => { cb({ docs: [] }); return () => {}; }, 
-                    add: async () => ({ id: crypto.randomUUID() }),
+                    add: async (data) => ({ id: crypto.randomUUID() }),
                 }),
                 delete: async () => {},
                 set: async () => {}
@@ -52,7 +52,6 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'devx-stock-analyzer'
 // --- ICON FALLBACK (Simplified to use EMOJI/Unicode for maximum compatibility) ---
 
 const Icon = ({ name, className = "", size = 18 }) => {
-    // Basic EMOJI/Unicode placeholders for icons (Most reliable for general HTML/JS)
     const iconMap = {
         LayoutDashboard: '🏠', Search: '🔍', PieChart: '💼', TrendingUp: '↗️', TrendingDown: '↘️',
         Activity: '⚡', Zap: '💡', Plus: '➕', Trash2: '🗑️', Menu: '☰', X: '✕',
@@ -241,8 +240,6 @@ function App() {
   
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
-  
-  // *** GEMINI REMOVAL: State removed ***
 
   // Auth Init: Signs in using the provided token or anonymously
   useEffect(() => {
@@ -287,8 +284,6 @@ function App() {
       return () => clearTimeout(timer);
     }
   }, [toast]);
-
-  // *** GEMINI REMOVAL: useEffect hook removed ***
 
 
   // --- ACTIONS ---
